@@ -1,0 +1,8 @@
+earthengine-api>=1.7
+numpy>=2.0
+scipy>=1.13
+pyproj>=3.6
+rasterio>=1.4
+pysheds>=0.5
+matplotlib>=3.9
+pytest>=8

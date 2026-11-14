@@ -1,0 +1,6 @@
+__pycache__/
+.pytest_cache/
+# Earth Engine download cache (re-creatable)
+data/
+# Large rasters; summaries and figures are kept
+outputs/**/*.tif
