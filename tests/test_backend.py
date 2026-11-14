@@ -226,7 +226,7 @@ def test_failed_isric_pull_is_not_cached(monkeypatch, tmp_path):
 
 def test_analysis_that_used_a_default_is_redone(tmp_path):
     key = planner.request_key([(37.2, 11.0), (37.21, 11.0), (37.21, 11.01)], "global")
-    for name in ("summary.json", backend_run.LAST_FILE):
+    for name in ("summary.json", backend_run.LAST_FILE, "soil_loss.tif"):
         (tmp_path / name).write_text("{}", encoding="utf-8")
     stamp = tmp_path / "plan.json"
     stamp.write_text(json.dumps({**key, "defaults_used": []}), encoding="utf-8")

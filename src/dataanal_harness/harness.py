@@ -76,6 +76,7 @@ def main(argv=None) -> int:
     ap.add_argument("--inputs", type=Path, help="run on this folder of input GeoTIFFs instead of synthetic data")
     ap.add_argument("--out", type=Path, help="output folder (default: outputs/<name>)")
     ap.add_argument("--extras", action="store_true", help="synthetic: add soil texture, depth and land cover")
+    ap.add_argument("--synthetic", action="store_true", help="run on synthetic data (default when --inputs is omitted)")
     ap.add_argument("--synthetic-years", type=int, default=2, help="years of synthetic rainfall")
     ap.add_argument("--no-figures", action="store_true")
     args = ap.parse_args(argv)

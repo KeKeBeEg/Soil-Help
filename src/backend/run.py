@@ -40,7 +40,8 @@ def analysis_is_current(analysis_dir: Path, key: dict) -> bool:
     """True when analysis_dir holds a complete analysis for `key` (plan.request_key) that used
     no default for a layer that could not be pulled (that analysis is redone, retrying the pull)."""
     stamp_path = analysis_dir / "plan.json"
-    if not (stamp_path.exists() and (analysis_dir / "summary.json").exists() and (analysis_dir / LAST_FILE).exists()):
+    if not (stamp_path.exists() and (analysis_dir / "summary.json").exists() and (analysis_dir / LAST_FILE).exists()
+            and (analysis_dir / "soil_loss.tif").exists()):
         return False
     stamp = json.loads(stamp_path.read_text(encoding="utf-8"))
     if any(stamp.get(k) != v for k, v in key.items()):
@@ -89,7 +90,16 @@ def main(argv=None) -> int:
     ap.add_argument("request", type=Path, help="path of the request JSON")
     ap.add_argument("--refresh", action="store_true", help="redo the analysis even if it is up to date")
     args = ap.parse_args(argv)
-    run(args.request, refresh=args.refresh)
+    try:
+        run(args.request, refresh=args.refresh)
+    except Exception as err:
+        msg = str(err)
+        if "authorize access to your earth engine account" in msg.lower() or "earthengine authenticate" in msg.lower():
+            print("\n[Error] Google Earth Engine is not authenticated on this machine.", file=sys.stderr)
+            print("To pull satellite/GIS datasets, please run 'earthengine authenticate' in your shell", file=sys.stderr)
+            print("and set your Google Cloud project (e.g. $env:EE_PROJECT = '<your-project>').", file=sys.stderr)
+            return 1
+        raise
     return 0
 
 
