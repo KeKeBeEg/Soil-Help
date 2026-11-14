@@ -1,0 +1,13 @@
+{
+  "label": "Cropland in the Gilgel Abay catchment, Ethiopia",
+  "polygon": {
+    "1": [37.2035, 11.0544],
+    "2": [37.2049, 11.0545],
+    "3": [37.2050, 11.0534],
+    "4": [37.2036, 11.0533]
+  },
+  "t_range": ["2024-07-01", "2024-08-31"],
+  "us_cache": "../cache/us",
+  "global_cache": "../cache/global",
+  "working_save": "../runs/ethiopia_gilgel_abay"
+}

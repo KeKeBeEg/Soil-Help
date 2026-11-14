@@ -49,6 +49,21 @@ def storm_ei30(rate_mm_h, step_h: float = 0.5):
     return first_wet[keep], total[keep], energy[keep], i30[keep], (energy * i30)[keep]
 
 
+def daily_totals(rate, times, step_h: float = 0.5):
+    """Daily rain (mm) from a (T, H, W) rain-rate cube with sorted datetime64 `times`.
+
+    Returns (days, totals): every calendar day (UTC) from the first to the last time step,
+    and (D, H, W) totals; a day without any time step is NaN, missing values count as 0."""
+    day = np.asarray(times).astype("datetime64[D]")
+    days = np.arange(day[0], day[-1] + np.timedelta64(1, "D"))
+    idx = (day - days[0]).astype(int)
+    depth = np.clip(np.nan_to_num(np.asarray(rate, float)), 0.0, None) * step_h
+    starts = np.concatenate([[0], np.flatnonzero(np.diff(idx)) + 1])
+    totals = np.full((days.size,) + depth.shape[1:], np.nan)
+    totals[idx[starts]] = np.add.reduceat(depth, starts, axis=0)
+    return days, totals
+
+
 def r_renard_freimund(annual_precip_mm):
     """Empirical R from annual precipitation (Renard & Freimund 1994); baseline check."""
     p = np.asarray(annual_precip_mm, float)
@@ -277,6 +292,13 @@ def recommend_practice(a_without_practice, slope_pct, tolerance):
         code[ok], p[ok] = c, pc[ok]
         done |= ok
     return code, p
+
+
+def erodibility_index(r, k, ls, tolerance):
+    """EI = R*K*LS / T, the potential (bare, no-practice) soil loss as a multiple of the
+    tolerance. Under USDA conservation compliance, EI >= 8 marks highly erodible land."""
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.asarray(r * k * ls, float) / tolerance
 
 
 def max_cover_factor(r, k, ls, p, tolerance):

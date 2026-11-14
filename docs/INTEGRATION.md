@@ -1,5 +1,11 @@
 # Integration guide: Earth Engine → RUSLE pipeline → outputs
 
+> **Superseded (2026-11-14).** Data ingestion is now part of the backend (`python run.py request.json`,
+> [BACKEND.md](BACKEND.md)), which pulls everything itself; there is no separate exporter any more.
+> The input-file rules below still hold for the analysis pipeline, which now also accepts
+> `soil_texture`, `k_factor`, `soil_tolerance`, `soil_depth`, `ksat` and `landcover`
+> (see [src/dataanal/README.md](../src/dataanal/README.md)).
+
 This is the contract between the Earth Engine code (which produces input GeoTIFFs) and the
 soil-loss pipeline in `src/dataanal` (which turns them into output GeoTIFFs). If the input files
 follow section 2, the pipeline runs on them; nothing else is shared between the two sides.

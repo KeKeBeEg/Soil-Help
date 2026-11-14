@@ -1,21 +1,34 @@
-"""GeoTIFF input/output for the RUSLE pipeline. The input contract lives here.
+"""GeoTIFF input/output for the analysis pipeline. The input contract lives here.
 
 Each input GeoTIFF has a role, taken from its RUSLE_ROLE tag or else from its file name
 (`<role>.tif` or `<role>_<anything>.tif`):
 
-  dem        elevation (m), 1 band. Defines the output grid; a geographic DEM is
-             reprojected to its UTM zone.
-  soil_type  ERA5-Land soil_type class (0 = non-land, 1-7), 1 band.
-  ndvi       NDVI, 12 bands (Jan..Dec monthly composites) or 1 band (annual).
-  precip     rain rate (mm/h), one band per time step, with tags TIME_START (ISO 8601,
-             UTC) and TIME_STEP_MINUTES. Several files (e.g. one per year) are joined in time.
-  aoi        optional study-area mask, 1 = inside.
-  water      optional water mask, 1 = water (excluded from the results).
+  dem             elevation (m), 1 band. Defines the output grid; a geographic DEM is
+                  reprojected to its UTM zone.
+  ndvi            NDVI, 12 bands (Jan..Dec monthly composites) or 1 band (annual).
+  precip          rain rate (mm/h), one band per time step, with tags TIME_START (ISO 8601,
+                  UTC) and TIME_STEP_MINUTES. Several files (e.g. one per year) are joined in time.
+                  GeoTIFF or the same content as .npz (see write_npz): GDAL handles tens of
+                  thousands of bands slowly (~15 s per year of half-hours each way).
+  soil inputs     at least one of soil_type, soil_texture, k_factor:
+    soil_type     ERA5-Land soil_type class (0 = non-land, 1-7), 1 band.
+    soil_texture  4 bands: sand, silt, clay, organic carbon, all in % (0-30 cm).
+    k_factor      RUSLE K in SI units (t ha h ha-1 MJ-1 mm-1), e.g. from a soil survey.
+  soil_tolerance  optional soil-loss tolerance T (t/ha/yr).
+  soil_depth      optional depth to bedrock or a restrictive layer (m).
+  ksat            optional saturated hydraulic conductivity (m/day).
+  landcover       optional land-cover classes; tag LANDCOVER_SCHEME names the scheme
+                  (worldcover by default, or cdl; see soil_params.SCHEMES).
+  aoi             optional study-area mask, 1 = inside.
+  water           optional water mask, 1 = water (excluded from the results).
 
-Inputs may be on different grids and CRSs; everything is resampled onto the DEM grid.
+Optional inputs replace a default: per pixel, a NaN in an optional input falls back to the
+next source (see pipeline). Inputs may be on different grids and CRSs; everything is
+resampled onto the DEM grid.
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -27,8 +40,10 @@ from rasterio.transform import array_bounds
 from rasterio.warp import Resampling, calculate_default_transform, reproject
 
 ROLE_TAG = "RUSLE_ROLE"
-ROLES = ("dem", "soil_type", "ndvi", "precip", "aoi", "water")
-REQUIRED = ("dem", "soil_type", "ndvi", "precip")
+ROLES = ("dem", "soil_type", "soil_texture", "k_factor", "soil_tolerance", "soil_depth", "ksat", "landcover",
+         "ndvi", "precip", "aoi", "water")
+REQUIRED = ("dem", "ndvi", "precip")
+SOIL_ROLES = ("soil_type", "soil_texture", "k_factor")  # at least one is required
 
 
 @dataclass
@@ -73,9 +88,29 @@ def grid_of(r: Raster) -> Grid:
 
 
 def read(path) -> Raster:
+    if Path(path).suffix.lower() == ".npz":
+        return read_npz(path)
     with rasterio.open(path) as src:
         data = src.read(masked=True).astype(np.float32).filled(np.nan)
         return Raster(Path(path), data, src.transform, src.crs, src.tags(), src.descriptions)
+
+
+def write_npz(path, data, grid: Grid, tags: dict) -> Path:
+    """A raster stack as .npz: data (bands, H, W) float32 with NaN as no-data, the affine
+    transform, the CRS as WKT and the tags as JSON. Used for long time series."""
+    data = np.asarray(data, np.float32)
+    if data.ndim == 2:
+        data = data[None]
+    with open(path, "wb") as f:
+        np.savez_compressed(f, data=data, transform=np.array(list(grid.transform)[:6]),
+                            crs=np.array(grid.crs.to_wkt()), tags=np.array(json.dumps({k: str(v) for k, v in tags.items()})))
+    return Path(path)
+
+
+def read_npz(path) -> Raster:
+    with np.load(path, allow_pickle=False) as z:
+        return Raster(Path(path), z["data"].astype(np.float32), Affine(*z["transform"][:6]),
+                      CRS.from_wkt(str(z["crs"])), json.loads(str(z["tags"])), ())
 
 
 def role_of(r: Raster) -> str:
@@ -91,10 +126,10 @@ def role_of(r: Raster) -> str:
 
 
 def expand(paths) -> list[Path]:
-    """Paths as given, with any directory replaced by the .tif files inside it."""
+    """Paths as given, with any directory replaced by the .tif and .npz files inside it."""
     out = []
     for p in map(Path, paths):
-        out += sorted(p.glob("*.tif")) if p.is_dir() else [p]
+        out += sorted([*p.glob("*.tif"), *p.glob("*.npz")]) if p.is_dir() else [p]
     return out
 
 
@@ -111,6 +146,8 @@ def load_inputs(paths) -> dict:
         else:
             layers[role] = r
     missing = [role for role in REQUIRED if not layers.get(role)]
+    if not any(layers.get(role) for role in SOIL_ROLES):
+        missing.append(" or ".join(SOIL_ROLES))
     if missing:
         raise ValueError(f"missing required input(s): {', '.join(missing)} (got {sorted(k for k, v in layers.items() if v)})")
     return layers
@@ -174,6 +211,20 @@ def align(data, src_transform, src_crs, grid: Grid, resampling=Resampling.biline
 
 def align_raster(r: Raster, grid: Grid, resampling=Resampling.bilinear) -> np.ndarray:
     return align(r.data, r.transform, r.crs, grid, resampling)
+
+
+def bbox_window(mask) -> tuple[slice, slice]:
+    """Row and column slices of the smallest box holding every True cell of `mask`."""
+    rows, cols = np.flatnonzero(mask.any(axis=1)), np.flatnonzero(mask.any(axis=0))
+    if rows.size == 0:
+        raise ValueError("empty mask: no cell to keep")
+    return slice(rows[0], rows[-1] + 1), slice(cols[0], cols[-1] + 1)
+
+
+def subgrid(grid: Grid, rows: slice, cols: slice) -> Grid:
+    """The part of `grid` covered by a row/column window."""
+    transform = grid.transform @ Affine.translation(cols.start, rows.start)
+    return Grid(grid.crs, transform, cols.stop - cols.start, rows.stop - rows.start)
 
 
 # --------------------------------------------------------------------------- writing

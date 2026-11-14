@@ -1,12 +1,11 @@
-"""Test and debug harness for src.dataanal (the GeoTIFF RUSLE pipeline).
+"""Test and debug harness for src.dataanal (the GeoTIFF analysis pipeline).
 
-    python -m src.dataanal_harness.harness                  # Earth Engine inputs (cached) -> pipeline
-    python -m src.dataanal_harness.harness --synthetic      # synthetic inputs, no Earth Engine needed
-    python -m src.dataanal_harness.harness --download-only  # only fetch the input GeoTIFFs
-    python -m src.dataanal_harness.harness --refresh        # re-download inputs even if cached
+    python -m src.dataanal_harness.harness                          # synthetic inputs, no Earth Engine
+    python -m src.dataanal_harness.harness --extras                 # + soil texture, depth, land cover
+    python -m src.dataanal_harness.harness --inputs runs/x/inputs   # any folder of input GeoTIFFs
 
-It prints a report of every input GeoTIFF before the run and sanity checks after it.
-Set EE_PROJECT to your Earth Engine Cloud project (after `earthengine authenticate`).
+It prints a report of every input GeoTIFF before the run and sanity checks after it. Real
+inputs are pulled by the backend (python run.py request.json), see src/ingest.
 """
 from __future__ import annotations
 
@@ -74,30 +73,27 @@ def sanity_checks(summary: dict, out_dir: Path) -> bool:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--synthetic", action="store_true", help="use synthetic inputs instead of Earth Engine")
+    ap.add_argument("--inputs", type=Path, help="run on this folder of input GeoTIFFs instead of synthetic data")
+    ap.add_argument("--out", type=Path, help="output folder (default: outputs/<name>)")
+    ap.add_argument("--extras", action="store_true", help="synthetic: add soil texture, depth and land cover")
     ap.add_argument("--synthetic-years", type=int, default=2, help="years of synthetic rainfall")
-    ap.add_argument("--download-only", action="store_true", help="fetch the inputs, do not run the pipeline")
-    ap.add_argument("--refresh", action="store_true", help="re-download inputs even if cached")
     ap.add_argument("--no-figures", action="store_true")
     args = ap.parse_args(argv)
 
-    if args.synthetic:
-        cfg = HarnessConfig(aoi_name="synthetic", aoi_label="Synthetic test area")
-        years = range(cfg.start_year, cfg.start_year + args.synthetic_years)
-        paths = synthetic.make_inputs(cfg.inputs_dir, years=years)
+    if args.inputs:
+        cfg = HarnessConfig(aoi_name=args.inputs.resolve().parent.name, aoi_label=args.inputs.resolve().parent.name)
+        paths = rio.expand([args.inputs])
     else:
-        from . import gee_data  # imported here so --synthetic works without Earth Engine
-
         cfg = HarnessConfig()
-        paths = gee_data.download_inputs(cfg, refresh=args.refresh)
+        years = range(cfg.start_year, cfg.start_year + args.synthetic_years)
+        paths = synthetic.make_inputs(cfg.inputs_dir, years=years, extras=args.extras)
+    out_dir = args.out or cfg.out_dir
 
-    print(f"\nInputs in {cfg.inputs_dir}")
+    print(f"\nInputs ({len(paths)} files)")
     describe(paths)
-    if args.download_only:
-        return 0
     print()
-    summary = pipeline.run(paths, cfg.out_dir, pipeline.Params(label=cfg.aoi_label, figures=not args.no_figures))
-    return 0 if sanity_checks(summary, cfg.out_dir) else 1
+    summary = pipeline.run(paths, out_dir, pipeline.Params(label=cfg.aoi_label, figures=not args.no_figures))
+    return 0 if sanity_checks(summary, out_dir) else 1
 
 
 if __name__ == "__main__":

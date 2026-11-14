@@ -1,0 +1,121 @@
+{
+  "field": {
+    "path": "us",
+    "profile": "us",
+    "label": "Pasture near Burnsville, NC (Hurricane Helene)",
+    "area": 5.648557871594239,
+    "area_unit": "acres",
+    "resolution_m": 10.0,
+    "cells": 267,
+    "centroid_lonlat": [
+      -82.34276,
+      35.96928
+    ]
+  },
+  "t_range": [
+    "2024-09-20",
+    "2024-10-05"
+  ],
+  "analysis_period": "2016–2025",
+  "data_sources": {
+    "precip": [
+      "NASA/GPM_L3/IMERG_V07"
+    ],
+    "ndvi": [
+      "LANDSAT/LC08/C02/T1_L2, LANDSAT/LC09/C02/T1_L2"
+    ],
+    "water": [
+      "Landsat"
+    ],
+    "aoi": [
+      "aoi.tif"
+    ],
+    "dem": [
+      "USGS/3DEP/10m_collection"
+    ],
+    "k_factor": [
+      "USDA NRCS SSURGO"
+    ],
+    "soil_tolerance": [
+      "USDA NRCS SSURGO"
+    ],
+    "ksat": [
+      "USDA NRCS SSURGO"
+    ],
+    "soil_depth": [
+      "USDA NRCS SSURGO + ISRIC BDRICM"
+    ],
+    "soil_texture": [
+      "USDA NRCS SSURGO + SoilGrids 2.0"
+    ],
+    "landcover": [
+      "USDA/NASS/CDL/2025"
+    ]
+  },
+  "units": {
+    "soil_loss": "tons/acre/yr",
+    "soil_loss_window": "tons/acre",
+    "rain": "mm/day"
+  },
+  "long_term": {
+    "soil_loss_mean": 7.178777141735259,
+    "soil_loss_p90": 10.23805390854144,
+    "tolerance": 4.928838336170478,
+    "share_above_tolerance_pct": 66.66666666666666,
+    "practice_share_pct": {
+      "no change needed": 33.33333333333333,
+      "Contour Farming (NRCS 330)": 1.1235955056179776,
+      "Stripcropping (NRCS 585)": 53.18352059925093,
+      "Terrace (NRCS 600)": 11.235955056179774,
+      "Conservation Cover (NRCS 327)": 1.1235955056179776
+    },
+    "monthly_soil_loss_share_pct": {
+      "Jan": 16.81999969482422,
+      "Feb": 25.25,
+      "Mar": 11.359999656677246,
+      "Apr": 7.849999904632568,
+      "May": 3.799999952316284,
+      "Jun": 1.190000057220459,
+      "Jul": 1.3799999952316284,
+      "Aug": 2.450000047683716,
+      "Sep": 2.069999933242798,
+      "Oct": 5.599999904632568,
+      "Nov": 10.180000305175781,
+      "Dec": 12.039999961853027
+    }
+  },
+  "landslide": {
+    "stability_share_pct": {
+      "stable even when saturated": 84.26966292134831,
+      "rain-dependent": 15.730337078651685,
+      "unstable even when dry": 0.0
+    },
+    "critical_rain_median_mm_day": 2434.45849609375,
+    "rain_for_10pct_failure_weakest_mm_day": 76.69891357421875,
+    "danger_days_per_year": 0.0,
+    "recharge_window_days": 3
+  },
+  "window": {
+    "rain_total_mm": 203.62895741395187,
+    "wettest_window_mm_day": 64.04291534423828,
+    "wettest_window_end": "2024-09-27",
+    "erosive_storms": 2,
+    "soil_loss": 0.6402204342258265,
+    "soil_loss_pct_of_average_year": 8.918238045081198,
+    "worst_alert": "low",
+    "worst_alert_day": "2024-09-27",
+    "field_share_at_warning_or_danger_on_that_day_pct": 0.0,
+    "days_with_warning_or_danger": 0
+  },
+  "highly_erodible_land_screening": {
+    "share_ei_ge_8_pct": 100.0,
+    "acres_ei_ge_8": 6.5977035,
+    "likely_hel": true
+  },
+  "advice": [
+    "67% of the field loses soil faster than the tolerance of 4.9 tons/acre/yr. The practice needed on most of that area: Stripcropping (NRCS 585).",
+    "Most erosion happens in Feb, Jan, Dec (54% of the yearly loss): plant a Cover Crop (NRCS 340) or keep residue with Residue and Tillage Management (NRCS 329) in those months.",
+    "Likely highly erodible land under USDA conservation compliance (a screening estimate, not an NRCS determination): a conservation plan keeps the farm eligible for USDA programs.",
+    "Landslide watch: the weakest parts of the field can fail when rain averages about 77 mm/day over 3 days."
+  ]
+}

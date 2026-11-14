@@ -6,3 +6,7 @@ data/
 outputs/**/*.tif
 # Harness runs on synthetic inputs
 outputs/synthetic/
+# Backend data caches (re-creatable) and run rasters; run summaries and figures are kept
+cache/
+runs/**/inputs/
+runs/**/*.tif
