@@ -1,8 +1,11 @@
 __pycache__/
 .pytest_cache/
-# Earth Engine download cache (re-creatable)
-data/
+# Earth Engine download cache (re-creatable).
+# Anchored with a leading slash: a bare "data/" matches a folder of that name
+# at ANY depth, which silently excluded frontend/public/data — the map's place
+# names — so they were missing from every deployment.
+/data/
 # Large rasters; summaries and figures are kept
-outputs/**/*.tif
+/outputs/**/*.tif
 # Harness runs on synthetic inputs
-outputs/synthetic/
+/outputs/synthetic/

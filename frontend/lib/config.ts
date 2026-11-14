@@ -72,7 +72,13 @@ export const RASTER_SOURCES = {
  */
 export const LABELS_GEOJSON = '/data/labels.geojson';
 export const GLYPHS = '/glyphs/{fontstack}/{range}.pbf';
-export const LABEL_FONT = ['Open Sans Semibold'];
+/**
+ * The folder under /public/glyphs, and what MapLibre puts in {fontstack}.
+ * Deliberately free of spaces: a URL-encoded space in a static asset path is
+ * a reliable way to get a 404 out of a CDN. The glyphs themselves are Open
+ * Sans Semibold; MapLibre does not check the name inside the file.
+ */
+export const LABEL_FONT = ['OpenSans-Semibold'];
 
 export type BasemapId = 'satellite' | 'hybrid' | 'relief' | 'topo';
 
