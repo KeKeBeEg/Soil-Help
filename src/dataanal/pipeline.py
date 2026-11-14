@@ -182,7 +182,6 @@ def run(inputs, out_dir, params: Params | None = None) -> dict:
             "area_above_pct": float(100 * np.mean(a_in > T)),
             "mean_with_practice_t_ha_yr": float(np.nanmean(A_practice[inside])),
             "total_with_practice_Mt_yr": float(np.nansum(A_practice[inside]) * px_ha / 1e6),
-            "area_cover_must_improve_pct": float(100 * np.mean(C[inside] > max_c[inside])),
         },
         "recommended_practice_area_pct": {
             name: float(100 * np.mean(practice[inside] == c)) for c, name in factors.PRACTICES.items()

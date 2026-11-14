@@ -13,6 +13,7 @@ Datasets (all read through Google Earth Engine):
 from __future__ import annotations
 
 import dataclasses
+import io
 import json
 import math
 import time
@@ -128,7 +129,9 @@ def _pixels(image: ee.Image, grid: Grid, col0=0, row0=0, width=None, height=None
     width, height = width or grid.width, height or grid.height
     request = {
         "expression": image,
-        "fileFormat": "NUMPY_NDARRAY",
+        # Raw .npy bytes, parsed below: a many-band structured array (e.g. 480 IMERG half-hours)
+        # has a header larger than numpy's default load limit.
+        "fileFormat": "NPY",
         "grid": {
             "dimensions": {"width": width, "height": height},
             "affineTransform": {
@@ -138,17 +141,28 @@ def _pixels(image: ee.Image, grid: Grid, col0=0, row0=0, width=None, height=None
             "crsCode": grid.crs,
         },
     }
-    for attempt in range(5):
-        try:
-            arr = ee.data.computePixels(request)
-            break
-        except ee.EEException as err:
-            if attempt == 4:
-                raise
-            print(f"    retrying after Earth Engine error: {err}")
-            time.sleep(3 * 2**attempt)
+    raw = _retry(lambda: ee.data.computePixels(request))
+    arr = np.load(io.BytesIO(raw), allow_pickle=False, max_header_size=1 << 20)
     data = rfn.structured_to_unstructured(arr) if arr.dtype.names else arr[..., None]
     return np.moveaxis(data.astype(np.float32), -1, 0)
+
+
+TRANSIENT = ("too many", "rate limit", "quota", "429", "timed out", "deadline", "internal error",
+             "unavailable", "503", "500", "connection", "reset by peer")
+
+
+def _retry(call, attempts: int = 5):
+    """Run an Earth Engine call, retrying only errors that can pass (rate limits, timeouts,
+    server/network hiccups). Errors in the request itself are raised immediately."""
+    for attempt in range(attempts):
+        try:
+            return call()
+        except Exception as err:  # noqa: BLE001 - network errors are not EEExceptions
+            transient = not isinstance(err, ee.EEException) or any(m in str(err).lower() for m in TRANSIENT)
+            if attempt == attempts - 1 or not transient:
+                raise
+            print(f"    retrying after: {str(err)[:200]}")
+            time.sleep(3 * 2**attempt)
 
 
 def fetch(image: ee.Image, grid: Grid, tile: int = 512, workers: int = 8) -> np.ndarray:
@@ -196,7 +210,8 @@ def _landsat_indices(img: ee.Image) -> ee.Image:
     # QA_PIXEL bits 0-5: fill, dilated cloud, cirrus, cloud, cloud shadow, snow.
     clear = img.select("QA_PIXEL").bitwiseAnd(0b111111).eq(0)
     sr = img.select(["SR_B3", "SR_B4", "SR_B5", "SR_B6"]).multiply(2.75e-5).add(-0.2)
-    ndvi = sr.normalizedDifference(["SR_B5", "SR_B4"]).rename("ndvi")
+    # toFloat(): same pixel type as the empty placeholder in ndvi_image, which median() requires.
+    ndvi = sr.normalizedDifference(["SR_B5", "SR_B4"]).toFloat().rename("ndvi")
     mndwi = sr.normalizedDifference(["SR_B3", "SR_B6"]).rename("mndwi")
     return ee.Image(ndvi.addBands(mndwi).updateMask(clear).copyProperties(img, ["system:time_start"]))
 
@@ -256,7 +271,7 @@ def fetch_imerg(grid: Grid, start: datetime, end: datetime, cache_dir: Path,
             .select("precipitation")
             .sort("system:time_start")
         )
-        times = np.array(col.aggregate_array("system:time_start").getInfo(), dtype="int64")
+        times = np.array(_retry(col.aggregate_array("system:time_start").getInfo), dtype="int64")
         rate = _pixels(col.toBands().toFloat().unmask(0, False), grid)
         if rate.shape[0] != times.size:
             raise RuntimeError(f"IMERG {t0:%Y-%m-%d}: {times.size} timestamps but {rate.shape[0]} bands")

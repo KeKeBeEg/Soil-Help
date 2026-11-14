@@ -54,16 +54,16 @@ def sanity_checks(summary: dict, out_dir: Path) -> bool:
     monthly = np.nansum(_read(out_dir / "soil_loss_monthly.tif"), axis=0)
     ok = np.isfinite(a)
     checks = [
-        (summary["study_area"]["area_km2"] > 0, f"study area {summary['study_area']['area_km2']:,.0f} km²"),
+        (summary["study_area"]["area_km2"] > 0, f"study area {summary['study_area']['area_km2']:,.0f} km2"),
         (min(r["coverage_pct_by_year"].values()) >= 95,
-         f"rainfall time coverage per year ≥ 95%: {r['coverage_pct_by_year']}"),
+         f"rainfall time coverage per year >= 95%: {r['coverage_pct_by_year']}"),
         (r["missing_pct"] < 5, f"missing rainfall values {r['missing_pct']:.2f}%"),
-        (0.25 <= ratio <= 4, f"R from storms {r['R_ei30_mean']:,.0f} vs Renard–Freimund "
-                             f"{r['R_renard_freimund_mean']:,.0f} (ratio {ratio:.2f}, expected 0.25–4)"),
+        (0.25 <= ratio <= 4, f"R from storms {r['R_ei30_mean']:,.0f} vs Renard-Freimund "
+                             f"{r['R_renard_freimund_mean']:,.0f} (ratio {ratio:.2f}, expected 0.25-4)"),
         (0.005 <= fm["K"] <= 0.07, f"mean K {fm['K']:.4f}"),
         (0 < fm["C"] < 1, f"mean C {fm['C']:.3f}"),
-        (0.05 <= sl["mean"] <= 200, f"mean soil loss {sl['mean']:.1f} t/ha/yr (plausible 0.05–200)"),
-        (np.allclose(a[ok], product[ok], rtol=1e-4), "soil_loss.tif = R·K·LS·C·P from the factor GeoTIFFs"),
+        (0.05 <= sl["mean"] <= 200, f"mean soil loss {sl['mean']:.1f} t/ha/yr (plausible 0.05-200)"),
+        (np.allclose(a[ok], product[ok], rtol=1e-4), "soil_loss.tif = R*K*LS*C*P from the factor GeoTIFFs"),
         (np.allclose(a[ok], monthly[ok], rtol=1e-3, atol=1e-4), "soil_loss_monthly.tif bands add up to soil_loss.tif"),
     ]
     print("\nSanity checks")

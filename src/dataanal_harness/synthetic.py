@@ -65,10 +65,23 @@ def make_inputs(out_dir, years=(2010,), size_px: int = 400, seed: int = 0) -> li
     for year in years:
         t0 = np.datetime64(f"{year}-01-01T00:00", "m")
         times = np.arange(t0, np.datetime64(f"{year + 1}-01-01T00:00", "m"), np.timedelta64(30, "m"))
-        month = times.astype("datetime64[M]").astype(int) % 12
-        p_rain = np.where((month >= 5) & (month <= 8), 0.12, 0.02)  # Jun-Sep rainy season
-        base = np.where(rng.random(times.size) < p_rain, rng.exponential(4.0, times.size), 0.0)
+        base = _storm_series(times, rng)
         paths.append(rio.write(out_dir / f"precip_{year}.tif", base[:, None, None] * scale, gll,
                                description="synthetic rain rate", units="mm/h",
                                tags={"TIME_START": f"{year}-01-01T00:00:00Z", "TIME_STEP_MINUTES": 30}))
     return paths
+
+
+def _storm_series(times, rng):
+    """Half-hourly rain rate (mm/h) made of discrete convective storms: ~0.5 storms/day in the
+    Jun-Sep rainy season and ~0.05/day otherwise, 1-6 h long, fast rise and slow decay,
+    gamma-distributed peak intensity (mean 10 mm/h). About 1,400 mm/yr."""
+    month = times.astype("datetime64[M]").astype(int) % 12
+    storms_per_day = np.where((month >= 5) & (month <= 8), 0.5, 0.05)
+    rate = np.zeros(times.size)
+    for s in np.flatnonzero(rng.random(times.size) < storms_per_day / 48):
+        dur = int(rng.integers(2, 13))
+        shape = np.interp(np.arange(dur), [0, 0.3 * (dur - 1), dur - 1], [0.3, 1.0, 0.1])
+        seg = rate[s : s + dur]
+        seg += rng.gamma(2.0, 5.0) * shape[: seg.size]
+    return rate

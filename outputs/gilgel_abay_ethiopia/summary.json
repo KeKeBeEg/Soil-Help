@@ -1,0 +1,234 @@
+{
+  "study_area": {
+    "label": "Gilgel Abay catchment, Ethiopia",
+    "area_km2": 653.9616,
+    "grid": {
+      "crs": "EPSG:32637",
+      "transform": [
+        30.0,
+        0.0,
+        276720.0,
+        0.0,
+        -30.0,
+        1254690.0
+      ],
+      "width": 1233,
+      "height": 1477,
+      "res_m": 30.0
+    },
+    "mean_slope_deg": 7.96576011149901
+  },
+  "period": {
+    "rainfall": "2010–2015",
+    "cover": "2013-04 to 2015-12"
+  },
+  "inputs": {
+    "precip": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\data\\gilgel_abay_ethiopia\\inputs\\precip_2010.tif",
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\data\\gilgel_abay_ethiopia\\inputs\\precip_2011.tif",
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\data\\gilgel_abay_ethiopia\\inputs\\precip_2012.tif",
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\data\\gilgel_abay_ethiopia\\inputs\\precip_2013.tif",
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\data\\gilgel_abay_ethiopia\\inputs\\precip_2014.tif",
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\data\\gilgel_abay_ethiopia\\inputs\\precip_2015.tif"
+    ],
+    "aoi": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\data\\gilgel_abay_ethiopia\\inputs\\aoi.tif"
+    ],
+    "dem": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\data\\gilgel_abay_ethiopia\\inputs\\dem.tif"
+    ],
+    "ndvi": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\data\\gilgel_abay_ethiopia\\inputs\\ndvi.tif"
+    ],
+    "soil_type": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\data\\gilgel_abay_ethiopia\\inputs\\soil_type.tif"
+    ],
+    "water": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\data\\gilgel_abay_ethiopia\\inputs\\water.tif"
+    ]
+  },
+  "soil_loss_t_ha_yr": {
+    "mean": 15.035266731534314,
+    "median": 7.460130607698519,
+    "p90": 37.56758606909887,
+    "p99": 109.06521558314508,
+    "max": 445.4934772618091
+  },
+  "total_soil_loss_Mt_yr": 0.983248708818095,
+  "severity_area_pct": {
+    "0-2 very low": 22.473383758312416,
+    "2-5 low": 17.592867838111594,
+    "5-10 moderate": 17.779071431717092,
+    "10-20 high": 18.609487162548994,
+    "20-50 very high": 17.61819042585987,
+    "50-inf severe": 5.926999383450037
+  },
+  "tolerance": {
+    "t_ha_yr": 11.0,
+    "area_above_pct": 39.562001805610606,
+    "mean_with_practice_t_ha_yr": 5.823777567771591,
+    "total_with_practice_Mt_yr": 0.38085268962640184
+  },
+  "recommended_practice_area_pct": {
+    "no change needed": 60.437998194389394,
+    "contour farming": 6.898065574492447,
+    "strip cropping": 14.868487691020391,
+    "terraces or soil/stone bunds": 13.345829479896068,
+    "permanent vegetation cover": 4.4496190602017
+  },
+  "monthly_soil_loss_share_pct": {
+    "Jan": 0.29379683028711184,
+    "Feb": 0.20208045257723492,
+    "Mar": 1.843805710247485,
+    "Apr": 9.284884062205721,
+    "May": 25.23060536325474,
+    "Jun": 13.843687076493298,
+    "Jul": 21.746476750152073,
+    "Aug": 12.955435715124443,
+    "Sep": 8.589323300970415,
+    "Oct": 2.42649276671429,
+    "Nov": 3.2197516964811044,
+    "Dec": 0.3636602754920782
+  },
+  "factor_mean": {
+    "R": 819.4507446289062,
+    "K": 0.04296407310461649,
+    "LS": 4.561110810727971,
+    "C": 0.11163966297912255,
+    "P": 1.0
+  },
+  "rainfall": {
+    "step_minutes": 30.0,
+    "coverage_pct_by_year": {
+      "2010": 100.0,
+      "2011": 100.0,
+      "2012": 100.0,
+      "2013": 100.0,
+      "2014": 100.0,
+      "2015": 100.0
+    },
+    "missing_pct": 0.0,
+    "mean_annual_precip_mm": 1566.42724609375,
+    "erosive_storms_per_year": 34.3724365234375,
+    "R_ei30_mean": 819.4507446289062,
+    "R_renard_freimund_mean": 8838.216796875,
+    "R_by_year": {
+      "2010": 816.5347900390625,
+      "2011": 889.0714721679688,
+      "2012": 685.2860107421875,
+      "2013": 833.91259765625,
+      "2014": 927.5264892578125,
+      "2015": 764.373291015625
+    },
+    "R_monthly_mean": [
+      0.7547872066497803,
+      0.565567672252655,
+      4.63853120803833,
+      17.053268432617188,
+      78.99671936035156,
+      73.41390228271484,
+      220.39468383789062,
+      210.1791534423828,
+      125.61058044433594,
+      53.70650100708008,
+      32.11000442504883,
+      2.027101993560791
+    ]
+  },
+  "k_sensitivity_mean_A_t_ha_yr": {
+    "williams": 5.573084799746096,
+    "class_min": 9.18358058121338,
+    "class_max": 15.362794088099628
+  },
+  "soil_type_pixels": {
+    "4 fine": 726624
+  },
+  "k_table": {
+    "1": {
+      "name": "coarse",
+      "sand": 78.8,
+      "silt": 13.3,
+      "clay": 8.0,
+      "k": 0.012707281770167058,
+      "k_min": 0.006081567790151374,
+      "k_max": 0.022468903776450222,
+      "k_williams": 0.01481938248859794
+    },
+    "2": {
+      "name": "medium",
+      "sand": 42.5,
+      "silt": 39.5,
+      "clay": 18.0,
+      "k": 0.03510151563897502,
+      "k_min": 0.015264232883846181,
+      "k_max": 0.04389999486944705,
+      "k_williams": 0.019144145111022626
+    },
+    "3": {
+      "name": "medium fine",
+      "sand": 7.5,
+      "silt": 75.0,
+      "clay": 17.5,
+      "k": 0.04378321294920408,
+      "k_min": 0.03778706814486113,
+      "k_max": 0.04389998197957488,
+      "k_williams": 0.0387226637625849
+    },
+    "4": {
+      "name": "fine",
+      "sand": 27.0,
+      "silt": 26.5,
+      "clay": 46.5,
+      "k": 0.042964073104616494,
+      "k_min": 0.02624256918740568,
+      "k_max": 0.04389999991871951,
+      "k_williams": 0.015925385763348125
+    },
+    "5": {
+      "name": "very fine",
+      "sand": 13.5,
+      "silt": 13.0,
+      "clay": 73.5,
+      "k": 0.026564773789216335,
+      "k_min": 0.010484850192880996,
+      "k_max": 0.04298552032754606,
+      "k_williams": 0.013010625914786153
+    },
+    "6": {
+      "name": "organic",
+      "sand": 42.5,
+      "silt": 39.5,
+      "clay": 18.0,
+      "k": 0.026326136729231266,
+      "k_min": 0.011448174662884636,
+      "k_max": 0.03292499615208529,
+      "k_williams": 0.017683744518737717
+    },
+    "7": {
+      "name": "tropical organic",
+      "sand": 42.5,
+      "silt": 39.5,
+      "clay": 18.0,
+      "k": 0.026326136729231266,
+      "k_min": 0.011448174662884636,
+      "k_max": 0.03292499615208529,
+      "k_williams": 0.017683744518737717
+    }
+  },
+  "outputs": [
+    "c_factor.tif",
+    "k_factor.tif",
+    "ls_factor.tif",
+    "max_cover_factor.tif",
+    "p_factor.tif",
+    "r_factor.tif",
+    "recommended_practice.tif",
+    "slope.tif",
+    "soil_loss.tif",
+    "soil_loss_class.tif",
+    "soil_loss_monthly.tif",
+    "soil_loss_with_practice.tif",
+    "stream_power_index.tif",
+    "upslope_area.tif"
+  ]
+}

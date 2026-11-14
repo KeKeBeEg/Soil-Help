@@ -4,3 +4,5 @@ __pycache__/
 data/
 # Large rasters; summaries and figures are kept
 outputs/**/*.tif
+# Harness runs on synthetic inputs
+outputs/synthetic/
