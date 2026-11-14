@@ -1,0 +1,14 @@
+{
+  "label": "Pasture near Burnsville, NC (Hurricane Helene)",
+  "polygon": {
+    "1": [-82.3437, 35.9699],
+    "2": [-82.3420, 35.9700],
+    "3": [-82.3417, 35.9690],
+    "4": [-82.3426, 35.9686],
+    "5": [-82.3438, 35.9689]
+  },
+  "t_range": ["2024-09-20", "2024-10-05"],
+  "us_cache": "../cache/us",
+  "global_cache": "../cache/global",
+  "working_save": "../runs/us_yancey_helene"
+}

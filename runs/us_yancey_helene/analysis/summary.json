@@ -1,0 +1,352 @@
+{
+  "study_area": {
+    "label": "Pasture near Burnsville, NC (Hurricane Helene)",
+    "area_km2": 1.4040000000000001,
+    "grid": {
+      "crs": "EPSG:32617",
+      "transform": [
+        10.0,
+        0.0,
+        378330.0,
+        0.0,
+        -10.0,
+        3981960.0
+      ],
+      "width": "120",
+      "height": "117",
+      "res_m": 10.0
+    },
+    "mean_slope_deg": 24.929699696482945
+  },
+  "period": {
+    "rainfall": "2016–2025",
+    "rainfall_years": [
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "cover": "2016 to 2025"
+  },
+  "inputs": {
+    "precip": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\precip_2016.npz",
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\precip_2017.npz",
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\precip_2018.npz",
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\precip_2019.npz",
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\precip_2020.npz",
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\precip_2021.npz",
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\precip_2022.npz",
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\precip_2023.npz",
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\precip_2024.npz",
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\precip_2025.npz"
+    ],
+    "ndvi": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\ndvi.tif"
+    ],
+    "water": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\water.tif"
+    ],
+    "aoi": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\aoi.tif"
+    ],
+    "dem": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\dem.tif"
+    ],
+    "k_factor": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\k_factor.tif"
+    ],
+    "soil_tolerance": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\soil_tolerance.tif"
+    ],
+    "ksat": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\ksat.tif"
+    ],
+    "soil_depth": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\soil_depth.tif"
+    ],
+    "soil_texture": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\soil_texture.tif"
+    ],
+    "landcover": [
+      "C:\\SenkDosya\\Projects\\NASA-2026Challenge\\runs\\us_yancey_helene\\inputs\\landcover.tif"
+    ]
+  },
+  "sources": {
+    "precip": [
+      "NASA/GPM_L3/IMERG_V07"
+    ],
+    "ndvi": [
+      "LANDSAT/LC08/C02/T1_L2, LANDSAT/LC09/C02/T1_L2"
+    ],
+    "water": [
+      "Landsat"
+    ],
+    "aoi": [
+      "aoi.tif"
+    ],
+    "dem": [
+      "USGS/3DEP/10m_collection"
+    ],
+    "k_factor": [
+      "USDA NRCS SSURGO"
+    ],
+    "soil_tolerance": [
+      "USDA NRCS SSURGO"
+    ],
+    "ksat": [
+      "USDA NRCS SSURGO"
+    ],
+    "soil_depth": [
+      "USDA NRCS SSURGO + ISRIC BDRICM"
+    ],
+    "soil_texture": [
+      "USDA NRCS SSURGO + SoilGrids 2.0"
+    ],
+    "landcover": [
+      "USDA/NASS/CDL/2025"
+    ]
+  },
+  "soil_loss_t_ha_yr": {
+    "mean": 5.338003022175984,
+    "median": 1.479619966963778,
+    "p90": 14.851711404712079,
+    "p99": 65.18069765363416,
+    "max": 189.2036268444888
+  },
+  "total_soil_loss_Mt_yr": 0.0007494556243135082,
+  "severity_area_pct": {
+    "0-2 very low": 71.46723646723648,
+    "2-5 low": 10.548433048433047,
+    "5-10 moderate": 4.501424501424502,
+    "10-20 high": 6.837606837606838,
+    "20-50 very high": 4.9002849002849,
+    "50-inf severe": 1.745014245014245
+  },
+  "tolerance": {
+    "t_ha_yr": 9.615040763389011,
+    "area_above_pct": 12.578347578347579,
+    "mean_with_practice_t_ha_yr": 2.6415266131118855,
+    "total_with_practice_Mt_yr": 0.00037087033648090876
+  },
+  "erodibility_index": {
+    "mean": 79.3997030575979,
+    "median": 73.83796415926358,
+    "p90": 138.5781220062391,
+    "p99": 186.3555564074374,
+    "max": 240.17900025738615,
+    "area_ge_8_pct": 99.1880341880342
+  },
+  "recommended_practice_area_pct": {
+    "no change needed": 87.42165242165242,
+    "contour farming": 0.5555555555555556,
+    "strip cropping": 6.403133903133903,
+    "terraces or soil/stone bunds": 3.9957264957264953,
+    "permanent vegetation cover": 1.6239316239316242
+  },
+  "monthly_soil_loss_share_pct": {
+    "Jan": 17.649932861328125,
+    "Feb": 28.660802841186523,
+    "Mar": 12.986785888671875,
+    "Apr": 10.561704635620117,
+    "May": 1.257283329963684,
+    "Jun": 0.4490860104560852,
+    "Jul": 0.4418462812900543,
+    "Aug": 1.0604966878890991,
+    "Sep": 0.9194689989089966,
+    "Oct": 4.843194961547852,
+    "Nov": 9.110474586486816,
+    "Dec": 12.058919906616211
+  },
+  "factor_mean": {
+    "R": 2092.021728515625,
+    "K": 0.028204249500156382,
+    "LS": 12.639248068413204,
+    "C": 0.009865831867977445,
+    "P": 1.0
+  },
+  "k_source_area_pct": {
+    "k_factor input": 100.0,
+    "Williams from soil_texture": 0.0,
+    "soil_type class": 0.0
+  },
+  "rainfall": {
+    "step_minutes": 30.0,
+    "coverage_pct_by_year": {
+      "2016": 100.0,
+      "2017": 100.0,
+      "2018": 100.0,
+      "2019": 100.0,
+      "2020": 100.0,
+      "2021": 100.0,
+      "2022": 100.0,
+      "2023": 100.0,
+      "2024": 100.0,
+      "2025": 100.0
+    },
+    "years_used": [
+      2016,
+      2017,
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023,
+      2024,
+      2025
+    ],
+    "missing_pct": 0.0,
+    "mean_annual_precip_mm": 1449.8216552734375,
+    "erosive_storms_per_year": 32.677581787109375,
+    "R_ei30_mean": 2092.021728515625,
+    "R_renard_freimund_mean": 7674.95849609375,
+    "R_by_year": {
+      "2016": 1299.73388671875,
+      "2017": 2057.722412109375,
+      "2018": 2181.42822265625,
+      "2019": 2110.735107421875,
+      "2020": 3637.598876953125,
+      "2021": 2113.900634765625,
+      "2022": 1492.4306640625,
+      "2023": 2046.3343505859375,
+      "2024": 2352.99658203125,
+      "2025": 1627.336181640625
+    },
+    "R_monthly_mean": [
+      194.71597290039062,
+      283.0183410644531,
+      143.0670928955078,
+      214.24085998535156,
+      215.85821533203125,
+      83.53850555419922,
+      120.28450012207031,
+      207.87005615234375,
+      182.32106018066406,
+      191.85206604003906,
+      117.04447174072266,
+      138.21051025390625
+    ]
+  },
+  "landslide": {
+    "parameters": {
+      "recharge_window_days": 3,
+      "infiltration_fraction": 0.7,
+      "macropore_factor": 100.0,
+      "min_slope_deg": 2.0,
+      "mc_samples": 100,
+      "alert_probabilities": [
+        0.1,
+        0.3,
+        0.6
+      ],
+      "default_soil_depth_m": 1.0
+    },
+    "landcover_scheme": "cdl",
+    "landcover_group_area_pct": {
+      "1 cropland": 0.014245014245014244,
+      "2 grass / pasture": 13.447293447293449,
+      "3 shrub / orchard": 0.9544159544159544,
+      "4 trees": 79.2948717948718,
+      "5 bare": 0.07834757834757834,
+      "6 built-up": 6.210826210826211
+    },
+    "texture_class_area_pct": {
+      "3 sandy loam": 13.44017094017094,
+      "4 loam": 69.28774928774929,
+      "8 clay loam": 17.27207977207977
+    },
+    "ksat_from_input_pct": 100.0,
+    "soil_depth_m_mean": 1.6452642399446238,
+    "transmissivity_m2_day_mean": 374.3344962896187,
+    "stability_class_area_pct": {
+      "1 stable even when saturated": 97.77065527065527,
+      "2 rain-dependent": 2.215099715099715,
+      "3 unstable even when dry": 0.014245014245014244
+    },
+    "critical_rain_mm_day_rain_dependent": {
+      "mean": 2175.953576312645,
+      "median": 1724.4528930258,
+      "p90": 4605.705183643198,
+      "p99": 10438.125009931946,
+      "max": 12546.769588148822
+    },
+    "wettest_window": {
+      "end_date": "2024-09-27",
+      "mean_rain_mm_day": 64.0451889038086
+    },
+    "alert_class_area_pct_wettest_window": {
+      "0 low": 99.81481481481481,
+      "1 watch": 0.12108262108262108,
+      "2 warning": 0.056980056980056974,
+      "3 danger": 0.007122507122507122
+    },
+    "danger_days_per_year_mean": 7.122507122507123e-06
+  },
+  "parameters": {
+    "tolerance_t_ha_yr": 11.0,
+    "p_factor": 1.0,
+    "organic_carbon_pct": 1.5,
+    "ls_m": 0.4,
+    "ls_n": 1.3,
+    "ls_max_specific_area_m": 300.0,
+    "ls_routing": "mfd",
+    "target_res_m": 30.0,
+    "complete_year_pct": 95.0,
+    "crop_to_region": true,
+    "label": "Pasture near Burnsville, NC (Hurricane Helene)",
+    "figures": true,
+    "landslide": true,
+    "recharge_window_days": 3,
+    "infiltration_fraction": 0.7,
+    "default_soil_depth_m": 1.0,
+    "min_soil_depth_m": 0.5,
+    "max_soil_depth_m": 2.0,
+    "macropore_factor": 100.0,
+    "min_slope_deg": 2.0,
+    "mc_samples": 100,
+    "mc_seed": 0,
+    "alert_probabilities": [
+      0.1,
+      0.3,
+      0.6
+    ]
+  },
+  "outputs": [
+    "c_factor.tif",
+    "c_factor_monthly.tif",
+    "cohesion.tif",
+    "critical_rain.tif",
+    "erodibility_index.tif",
+    "friction_angle.tif",
+    "k_factor.tif",
+    "landcover_group.tif",
+    "landslide_class_wettest.tif",
+    "landslide_danger_days.tif",
+    "landslide_rain_quantiles.tif",
+    "ls_factor.tif",
+    "max_cover_factor.tif",
+    "p_factor.tif",
+    "r_factor.tif",
+    "recommended_practice.tif",
+    "slope.tif",
+    "soil_depth.tif",
+    "soil_loss.tif",
+    "soil_loss_class.tif",
+    "soil_loss_monthly.tif",
+    "soil_loss_with_practice.tif",
+    "soil_tolerance.tif",
+    "stability_class.tif",
+    "stream_power_index.tif",
+    "texture_class.tif",
+    "transmissivity.tif",
+    "upslope_area.tif",
+    "wetness_index.tif"
+  ]
+}

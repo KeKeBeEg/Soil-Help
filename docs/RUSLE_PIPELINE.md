@@ -1,5 +1,9 @@
 # RUSLE soil-loss pipeline: data guide
 
+> **Historical (2026-11-14).** This describes the first, basin-scale soil-loss run (Gilgel Abay,
+> 2010–2015, harness downloader). The current system takes a field polygon and dates, runs soil
+> loss and landslide risk on US or global data, and is documented in [BACKEND.md](BACKEND.md).
+
 What the soil-loss part of the project does, which data it uses, what it produces, and how to run
 it. Exact file-format rules for producing inputs (tags, band order, export limits) are in
 [INTEGRATION.md](INTEGRATION.md).

@@ -1,0 +1,102 @@
+{
+  "field": {
+    "path": "global",
+    "profile": "global",
+    "label": "Cropland in the Gilgel Abay catchment, Ethiopia",
+    "area": 1.8737166137695314,
+    "area_unit": "ha",
+    "resolution_m": 30.0,
+    "cells": 33,
+    "centroid_lonlat": [
+      37.20425,
+      11.0539
+    ]
+  },
+  "t_range": [
+    "2024-07-01",
+    "2024-08-31"
+  ],
+  "analysis_period": "2016–2025",
+  "data_sources": {
+    "precip": [
+      "NASA/GPM_L3/IMERG_V07"
+    ],
+    "ndvi": [
+      "LANDSAT/LC08/C02/T1_L2, LANDSAT/LC09/C02/T1_L2"
+    ],
+    "water": [
+      "Landsat"
+    ],
+    "aoi": [
+      "aoi.tif"
+    ],
+    "dem": [
+      "projects/sat-io/open-datasets/FABDEM"
+    ],
+    "soil_texture": [
+      "SoilGrids 2.0 (ISRIC)"
+    ],
+    "soil_depth": [
+      "ISRIC BDRICM 250 m"
+    ],
+    "landcover": [
+      "ESA/WorldCover/v200"
+    ]
+  },
+  "units": {
+    "soil_loss": "t/ha/yr",
+    "soil_loss_window": "t/ha",
+    "rain": "mm/day"
+  },
+  "long_term": {
+    "soil_loss_mean": 4.474420547485352,
+    "soil_loss_p90": 7.230567932128906,
+    "tolerance": 11.0,
+    "share_above_tolerance_pct": 3.0303030303030303,
+    "practice_share_pct": {
+      "no change needed": 96.96969696969697,
+      "strip cropping": 3.0303030303030303
+    },
+    "monthly_soil_loss_share_pct": {
+      "Jan": 14.380000114440918,
+      "Feb": 2.25,
+      "Mar": 0.6200000047683716,
+      "Apr": 15.65999984741211,
+      "May": 30.760000228881836,
+      "Jun": 18.09000015258789,
+      "Jul": 8.300000190734863,
+      "Aug": 4.039999961853027,
+      "Sep": 3.2799999713897705,
+      "Oct": 1.0299999713897705,
+      "Nov": 0.4699999988079071,
+      "Dec": 1.1399999856948853
+    }
+  },
+  "landslide": {
+    "stability_share_pct": {
+      "stable even when saturated": 100.0,
+      "rain-dependent": 0.0,
+      "unstable even when dry": 0.0
+    },
+    "critical_rain_median_mm_day": null,
+    "rain_for_10pct_failure_weakest_mm_day": 9999.0,
+    "danger_days_per_year": 0.0,
+    "recharge_window_days": 3
+  },
+  "window": {
+    "rain_total_mm": 525.1116950213909,
+    "wettest_window_mm_day": 20.721237182617188,
+    "wettest_window_end": "2024-07-23",
+    "erosive_storms": 12,
+    "soil_loss": 0.2922972235291485,
+    "soil_loss_pct_of_average_year": 6.5326274190614715,
+    "worst_alert": "low",
+    "worst_alert_day": "2024-07-23",
+    "field_share_at_warning_or_danger_on_that_day_pct": 0.0,
+    "days_with_warning_or_danger": 0
+  },
+  "advice": [
+    "Soil loss is within the tolerance (11.0 t/ha/yr) on most of the field: keep the current cover and practices.",
+    "Most erosion happens in May, Jun, Apr (65% of the yearly loss): keep the soil covered with a cover crop, mulch or crop residue in those months."
+  ]
+}

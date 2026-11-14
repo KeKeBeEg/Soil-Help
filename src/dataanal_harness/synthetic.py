@@ -20,7 +20,8 @@ UTM = CRS.from_epsg(32637)
 ORIGIN = (320_000.0, 1_250_000.0)  # top-left corner, UTM 37N (south of Lake Tana, Ethiopia)
 
 
-def make_inputs(out_dir, years=(2010,), size_px: int = 400, seed: int = 0) -> list[Path]:
+def make_inputs(out_dir, years=(2010,), size_px: int = 400, seed: int = 0, extras: bool = False) -> list[Path]:
+    """Synthetic inputs; `extras` adds the optional soil_texture, soil_depth and landcover layers."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(seed)
@@ -46,6 +47,18 @@ def make_inputs(out_dir, years=(2010,), size_px: int = 400, seed: int = 0) -> li
     ndvi = np.stack([np.where(forest, 0.75, c) for c in crop])
     paths.append(rio.write(out_dir / "ndvi.tif", ndvi, g30, description="synthetic monthly NDVI", units="NDVI",
                            band_names=[f"ndvi_{m:02d}" for m in range(1, 13)], tags={"TIME_RANGE": "synthetic"}))
+    if extras:
+        # Sandy in the west, clayey in the east; thin soils on the high ground.
+        clay = 10 + 35 * x / span
+        sand = 55 - 30 * x / span
+        texture = np.stack([sand, 100 - sand - clay, clay, np.full(x.shape, 2.0)])
+        paths.append(rio.write(out_dir / "soil_texture.tif", texture, g30, description="synthetic sand, silt, clay, OC",
+                               units="%", band_names=["sand", "silt", "clay", "organic_carbon"]))
+        depth = np.clip(2.2 - (dem - dem.min()) / (dem.max() - dem.min()) * 1.8, 0.4, 2.0)
+        paths.append(rio.write(out_dir / "soil_depth.tif", depth, g30, description="synthetic soil depth", units="m"))
+        paths.append(rio.write(out_dir / "landcover.tif", np.where(forest, 10, 40), g30, dtype="uint8", nodata=255,
+                               description="synthetic land cover", units="class",
+                               tags={"LANDCOVER_SCHEME": "worldcover"}))
 
     # 0.1 deg lat/lon grid covering the UTM tile plus a one-pixel margin.
     to_ll = Transformer.from_crs(UTM, "EPSG:4326", always_xy=True)

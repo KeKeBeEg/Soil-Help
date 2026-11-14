@@ -8,4 +8,12 @@ __pycache__/
 # Large rasters; summaries and figures are kept
 /outputs/**/*.tif
 # Harness runs on synthetic inputs
+<<<<<<< HEAD
 /outputs/synthetic/
+=======
+outputs/synthetic/
+# Backend data caches (re-creatable) and run rasters; run summaries and figures are kept
+cache/
+runs/**/inputs/
+runs/**/*.tif
+>>>>>>> 44f2168a4cf0490d8e7c800c728dd16ce9493216
