@@ -1,4 +1,3 @@
-[README.md](https://github.com/user-attachments/files/34852672/README.md)
 # Field-Level Landslide & Soil-Loss Risk for Farmers
 
 Satellite-based tool that estimates, for an individual farm field:
@@ -81,15 +80,7 @@ FS = [c′ + c_r + (γ − W·γw) · z · cos²θ · tanφ′] / (γ · z · si
 
 FS < 1 means unstable. Source: infinite-slope model (Skempton & DeLory, 1957), in the form used by SINMAP and SHALSTAB.
 
-### 2.3 Critical wetness (wetness at which FS = 1)
-
-```
-W_crit = [c′ + c_r + γ · z · cos²θ · (tanφ′ − tanθ)] / (γw · z · cos²θ · tanφ′)
-```
-
-W_crit ≤ 0 means unstable even when dry. W_crit ≥ 1 means stable even when saturated. Derived algebraically from 2.2.
-
-### 2.4 RUSLE soil loss (t/ha/yr)
+### 2.3 RUSLE soil loss (t/ha/yr)
 
 ```
 A = R · K · LS · C · P
@@ -143,7 +134,6 @@ A = R · K · LS · C · P
 | `recharge(rain_daily, date, window=3, f_inf=0.7)` | daily rain, date | q (m/day) | `f_inf × mean(rain[date−window+1 … date]) / 1000` |
 | `wetness(q, a, theta, T=65)` | q, a, θ | W (0–1) | Formula 2.1 |
 | `factor_of_safety(W, theta, c, c_r, phi, z, gamma=18, gamma_w=9.81)` | see formula | FS | Formula 2.2 |
-| `critical_wetness(theta, c, c_r, phi, z, gamma=18, gamma_w=9.81)` | see formula | W_crit | Formula 2.3 (static "where" map) |
 | `failure_probability(..., n=100)` | same as FS + parameter ranges | P(FS < 1) | Monte Carlo over φ′ ± 3°, c′ range, z ± 30%, T range |
 | `classify_landslide(p_fail)` | P(FS < 1) | low / watch / warning / danger | Thresholds e.g. 0.1 / 0.3 / 0.6 (to be tuned) |
 
@@ -155,55 +145,22 @@ A = R · K · LS · C · P
 | `k_factor(sand, silt, clay, soc)` | % | K | Williams EPIC |
 | `ls_factor(a, theta, a_max=300)` | a, θ | LS | Moore & Burch |
 | `c_factor(ndvi)` | NDVI | C | van der Knijff |
-| `rusle(R, K, LS, C, P=1)` | factors | A (t/ha/yr) | Formula 2.4 |
+| `rusle(R, K, LS, C, P=1)` | factors | A (t/ha/yr) | Formula 2.3 |
 
 ### Field output and validation
 
 | Function | Inputs | Output | Description |
 |---|---|---|---|
-| `field_summary(field, layers)` | field polygon, rasters | dict | % of field in each risk class, 90th-percentile P(FS < 1), min W_crit, mean soil loss, cropland area |
+| `field_summary(field, layers)` | field polygon, rasters | dict | % of field in each risk class, 90th-percentile P(FS < 1), mean soil loss, cropland area |
 | `farmer_advice(summary, alert)` | summary, alert level | text | Rule-based advice (e.g. contour ploughing, keep root cover, clear drainage, keep animals off slope) |
 | `validate(predictions, inventory)` | maps, landslide events | metrics | Hit rate, false-alarm rate, AUC, distance (m) from each landslide to the nearest flagged pixel. Use spatial (by sub-basin) and temporal (by year) hold-outs |
 
 ---
 
-## 4. Pipeline
-
-```
-FABDEM ─► slope θ, catchment a ───────────────┐
-SoilGrids ─► texture ─► c′, φ′                 │
-Depth-to-bedrock ─► z                          ├─► W_crit (static map)
-WorldCover ─► c_r                              │
-IMERG ─► recharge q(t) ─► W(t) ────────────────┴─► FS(t) ─► P(FS<1) ─► risk class
-                                                                       │
-HLS NDVI ─► C;  SoilGrids ─► K;  IMERG ─► R;  FABDEM ─► LS ─► RUSLE A  │
-                                                                       ▼
-                               Farmer field polygon ─► field_summary ─► farmer_advice
-                                                    (+ optional LHASA regional watch)
-```
-
----
-
-## 5. Assumptions and limitations
+## 4. Assumptions and limitations
 
 - Steady-state wetness (2.1) is applied to multi-day mean rain. This is a simplification, not a transient infiltration model.
 - c′, φ′ and c_r come from lookup tables. Results are relative unless calibrated against known landslides.
 - Soil data (250 m) is coarser than terrain (30 m). The variation inside a field comes mainly from slope and catchment area.
 - T = 65 m²/day is a default. Check it against 2–3 dated landslides and adjust if needed.
 - RUSLE estimates sheet/rill erosion only, not landslides or gullies.
-
----
-
-## 6. References
-
-- Montgomery, D.R. & Dietrich, W.E. (1994). A physically based model for the topographic control on shallow landsliding. *Water Resources Research*, 30(5), 1153–1171.
-- Pack, R.T., Tarboton, D.G. & Goodwin, C.N. (1998). *SINMAP User's Manual*. Utah State University.
-- Skempton, A.W. & DeLory, F.A. (1957). Stability of natural slopes in London Clay. *Proc. 4th Int. Conf. Soil Mech. Found. Eng.*
-- Renard, K.G. et al. (1997). *Predicting Soil Erosion by Water: RUSLE*. USDA Agriculture Handbook 703.
-- Renard, K.G. & Freimund, J.R. (1994). Using monthly precipitation data to estimate the R-factor in the revised USLE. *Journal of Hydrology*, 157, 287–306.
-- Williams, J.R. (1995). The EPIC model. In *Computer Models of Watershed Hydrology*, Water Resources Publications.
-- Moore, I.D. & Burch, G.J. (1986). Physical basis of the length-slope factor in the Universal Soil Loss Equation. *Soil Sci. Soc. Am. J.*, 50, 1294–1298.
-- van der Knijff, J.M., Jones, R.J.A. & Montanarella, L. (2000). *Soil Erosion Risk Assessment in Europe*. EUR 19044 EN.
-- Hawker, L. et al. (2022). A 30 m global map of elevation with forests and buildings removed. *Environ. Res. Lett.*, 17, 024016.
-- Shangguan, W. et al. (2017). Mapping the global depth to bedrock for land surface modeling. *J. Adv. Model. Earth Syst.*, 9(1).
-- Stanley, T.A. et al. (2021). Data-driven landslide nowcasting at the global scale. *Front. Earth Sci.*, 9:640043.
