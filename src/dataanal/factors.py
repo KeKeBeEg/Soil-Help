@@ -1,5 +1,6 @@
-"""RUSLE factor maths, A = R * K * LS * C * P (pure numpy, no Earth Engine).
+"""RUSLE factor maths, A = R * K * LS * C * P, plus farmer-facing derivatives.
 
+Pure numpy (pysheds for flow routing); no file or Earth Engine access.
 Units: R  MJ mm ha-1 h-1 yr-1 | K  t ha h ha-1 MJ-1 mm-1 | LS, C, P dimensionless
        A  t ha-1 yr-1
 """
@@ -13,7 +14,7 @@ import numpy as np
 #   * storms with < 12.7 mm total are not erosive
 #   * unit energy e = 0.29 [1 - 0.72 exp(-0.05 i)]  MJ ha-1 mm-1  (Brown & Foster 1987)
 #   * EI30 = (sum of e * depth) * I30, I30 = max 30-min intensity (mm/h)
-# With half-hourly IMERG every time step is a 30-min intensity, so I30 = max rate.
+# With half-hourly rain every time step is a 30-min intensity, so I30 = max rate.
 
 STORM_GAP_H = 6.0
 STORM_GAP_MM = 1.27
@@ -58,8 +59,8 @@ def r_factor(rate, times, years, step_h: float = 0.5) -> dict:
     """R statistics per pixel from a (T, H, W) rain-rate cube and datetime64 `times`.
 
     Returns arrays: annual (H,W) mean EI30 R; yearly (Y,H,W); monthly (12,H,W) mean R per
-    calendar month; storms (H,W) erosive storms per year; precip (H,W) mean annual rain;
-    renard_freimund (H,W) the empirical baseline."""
+    calendar month (sums to annual); storms (H,W) erosive storms per year; precip (H,W)
+    mean annual rain; renard_freimund (H,W) the empirical baseline."""
     years = list(years)
     ny = len(years)
     _, h, w = rate.shape
@@ -167,11 +168,11 @@ def k_lookup(organic_carbon_pct: float = 1.5) -> dict[int, dict]:
     return table
 
 
-def k_from_soil_type(soil_type, table: dict[int, dict]):
-    """Map a soil_type raster to K; class 0 (non-land) and NaN become NaN."""
+def k_from_soil_type(soil_type, table: dict[int, dict], key: str = "k"):
+    """Map a soil_type raster to K (or another `key` of the table); class 0 / NaN -> NaN."""
     lut = np.full(8, np.nan)
     for c, row in table.items():
-        lut[c] = row["k"]
+        lut[c] = row[key]
     st = np.asarray(soil_type, float)
     out = np.full(st.shape, np.nan)
     ok = np.isfinite(st)
@@ -179,14 +180,20 @@ def k_from_soil_type(soil_type, table: dict[int, dict]):
     return out
 
 
-# ============================================================================ LS factor
-# Moore & Burch (1986): LS = (As / 22.13)^m * (sin b / 0.0896)^n, with As the specific
-# catchment area (upslope area per unit contour width, m) from flow accumulation on the
-# depression-filled DEM, capped where overland flow would be channelised.
+# ============================================================================ terrain
+# LS after Moore & Burch (1986): LS = (As / 22.13)^m * (sin b / 0.0896)^n, with As the
+# specific catchment area (upslope area per unit contour width, m) from flow accumulation
+# on the depression-filled DEM, capped where overland flow would be channelised.
 
 
-def ls_factor(dem, res, crs, transform, m=0.4, n=1.3, max_specific_area=300.0, routing="mfd"):
-    """LS and slope (radians) from a projected DEM (metres, NaN = no data)."""
+def slope_radians(dem, xres, yres=None):
+    yres = xres if yres is None else yres
+    dzdy, dzdx = np.gradient(np.asarray(dem, float), yres, xres)
+    return np.arctan(np.hypot(dzdx, dzdy))
+
+
+def flow_accumulation(dem, transform, crs, routing: str = "mfd"):
+    """Upslope contributing area in cells (>= 1) on the depression-filled DEM."""
     from pyproj import CRS
     from pysheds.grid import Grid
     from pysheds.view import Raster, ViewFinder
@@ -200,18 +207,23 @@ def ls_factor(dem, res, crs, transform, m=0.4, n=1.3, max_specific_area=300.0, r
     conditioned = grid.resolve_flats(grid.fill_depressions(grid.fill_pits(z)))
     fdir = grid.flowdir(conditioned, routing=routing)
     acc = np.asarray(grid.accumulation(fdir, routing=routing), float)
-
-    specific_area = np.minimum(acc * res, max_specific_area)
-    dzdy, dzdx = np.gradient(np.where(valid, dem, np.nan), res)
-    slope = np.arctan(np.hypot(dzdx, dzdy))
-    ls = (specific_area / 22.13) ** m * (np.sin(slope) / 0.0896) ** n
-    return np.where(valid, ls, np.nan), slope
+    return np.where(valid, acc, np.nan)
 
 
-# ============================================================================ C and P
+def ls_factor(specific_area, slope, m=0.4, n=1.3, max_specific_area=300.0):
+    a = np.minimum(specific_area, max_specific_area)
+    return (a / 22.13) ** m * (np.sin(slope) / 0.0896) ** n
+
+
+def stream_power_index(specific_area, slope):
+    """SPI = As * tan(slope): where concentrated runoff can cut rills and gullies."""
+    return specific_area * np.tan(slope)
+
+
+# ============================================================================ C factor
 # C from NDVI (van der Knijff et al. 2000): C = exp(-a NDVI / (b - NDVI)), a=2, b=1.
-# Monthly C values are averaged with weights equal to each month's share of annual
-# erosivity, so the cover that matters is the cover present when the storms fall.
+# The pipeline averages monthly C with each month's R as weight, so the cover that
+# counts is the cover present when the storms fall.
 
 
 def c_from_ndvi(ndvi, alpha: float = 2.0, beta: float = 1.0):
@@ -219,14 +231,7 @@ def c_from_ndvi(ndvi, alpha: float = 2.0, beta: float = 1.0):
     return np.clip(np.exp(-alpha * v / (beta - v)), 0.0, 1.0)
 
 
-def c_effective(ndvi_monthly, monthly_r):
-    """Erosivity-weighted C from (12, H, W) monthly NDVI and 12 monthly R values."""
-    w = np.asarray(monthly_r, float)
-    w = w / w.sum()
-    return np.tensordot(w, c_from_ndvi(ndvi_monthly), axes=1)
-
-
-# ============================================================================ A
+# ============================================================================ A and farmer products
 
 SEVERITY_CLASSES = [(0, 2, "very low"), (2, 5, "low"), (5, 10, "moderate"),
                     (10, 20, "high"), (20, 50, "very high"), (50, np.inf, "severe")]
@@ -234,3 +239,49 @@ SEVERITY_CLASSES = [(0, 2, "very low"), (2, 5, "low"), (5, 10, "moderate"),
 
 def soil_loss(r, k, ls, c, p):
     return r * k * ls * c * p
+
+
+def severity_class(a):
+    """1..6 following SEVERITY_CLASSES; 0 where A is undefined."""
+    edges = [hi for _, hi, _ in SEVERITY_CLASSES[:-1]]
+    a = np.asarray(a, float)
+    return np.where(np.isfinite(a), np.digitize(a, edges) + 1, 0).astype(np.uint8)
+
+
+# Support-practice P by slope class (Shin 1999, after Wischmeier & Smith 1978).
+PRACTICES = {0: "no change needed", 1: "contour farming", 2: "strip cropping",
+             3: "terraces or soil/stone bunds", 4: "permanent vegetation cover"}
+P_SLOPE_BREAKS_PCT = [7.0, 11.3, 17.6, 26.8]
+P_BY_PRACTICE = {1: [0.55, 0.60, 0.80, 0.90, 1.00],
+                 2: [0.27, 0.30, 0.40, 0.45, 0.50],
+                 3: [0.10, 0.12, 0.16, 0.18, 0.20]}
+
+
+def practice_p(practice: int, slope_pct):
+    return np.asarray(P_BY_PRACTICE[practice])[np.digitize(slope_pct, P_SLOPE_BREAKS_PCT)]
+
+
+def recommend_practice(a_without_practice, slope_pct, tolerance):
+    """Least intensive practice whose P brings soil loss within `tolerance`.
+
+    Returns (code, p): code 0 = already within tolerance, 1-3 = PRACTICES, 4 = even
+    terraces are not enough, so cover itself must change (p then holds the terrace P)."""
+    a = np.asarray(a_without_practice, float)
+    code = np.full(a.shape, 4, np.uint8)
+    p = practice_p(3, slope_pct).astype(float)
+    done = (a <= tolerance) | ~np.isfinite(a)
+    code[done], p[done] = 0, 1.0
+    for c in (1, 2, 3):
+        pc = practice_p(c, slope_pct)
+        ok = ~done & (a * pc <= tolerance)
+        code[ok], p[ok] = c, pc[ok]
+        done |= ok
+    return code, p
+
+
+def max_cover_factor(r, k, ls, p, tolerance):
+    """Largest C that keeps soil loss within tolerance (1 = any cover is fine)."""
+    denom = np.asarray(r * k * ls * p, float)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        c = tolerance / denom
+    return np.where(np.isfinite(denom), np.clip(np.nan_to_num(c, posinf=1.0), 0.0, 1.0), np.nan)

@@ -117,8 +117,8 @@ def factor_maps(path: Path, layers: dict, inside, res: float, summary: dict):
     fig.suptitle(f"RUSLE average annual soil loss · {sa['label']}",
                  x=0.012, ha="left", fontsize=13, fontweight="semibold")
     fig.text(0.012, 0.925,
-             f"{sa['area_km2']:,.0f} km² · rainfall {summary['period']['rainfall']} (IMERG V07), cover "
-             f"{summary['period']['cover']} (Landsat 8/9), soil ERA5-Land, terrain FABDEM · "
+             f"{sa['area_km2']:,.0f} km² · rainfall {summary['period']['rainfall']} · "
+             f"vegetation cover {summary['period']['cover']} · "
              f"mean {sl['mean']:.1f}, median {sl['median']:.1f} t ha⁻¹ yr⁻¹ · "
              f"total {summary['total_soil_loss_Mt_yr']:.2f} Mt yr⁻¹",
              color=INK_2, fontsize=9)
@@ -148,7 +148,7 @@ def rainfall_charts(path: Path, summary: dict):
     a2.set_title("Erosivity by year")
     _chart_axes(a2)
 
-    fig.suptitle("Rainfall erosivity from IMERG V07 half-hourly storms (EI30)",
+    fig.suptitle(f"Rainfall erosivity from {r['step_minutes']:g}-minute rainfall, storm EI30",
                  x=0.012, ha="left", fontsize=12, fontweight="semibold")
     fig.text(0.012, 0.86,
              f"Study-area mean R {r['R_ei30_mean']:,.0f} {UNIT_R} · "
@@ -163,6 +163,6 @@ def rainfall_charts(path: Path, summary: dict):
 
 def make_figures(out_dir: Path, layers: dict, inside, summary: dict):
     _style()
-    res = summary["study_area"]["grid"]["res"]
+    res = summary["study_area"]["grid"]["res_m"]
     factor_maps(out_dir / "rusle_maps.png", layers, inside, res, summary)
     rainfall_charts(out_dir / "rainfall_erosivity.png", summary)

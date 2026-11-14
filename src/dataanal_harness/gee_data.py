@@ -1,4 +1,7 @@
-"""Earth Engine access: every remote data pull of the pipeline lives here.
+"""Earth Engine access for the harness: pulls the pipeline's input GeoTIFFs.
+
+`download_inputs(cfg)` writes dem.tif, soil_type.tif, aoi.tif, ndvi.tif, water.tif and
+precip_<year>.tif in the format src.dataanal.raster_io expects.
 
 Datasets (all read through Google Earth Engine):
   NASA GPM IMERG V07, half-hourly    NASA/GPM_L3/IMERG_V07          band `precipitation` (mm/h)
@@ -10,6 +13,7 @@ Datasets (all read through Google Earth Engine):
 from __future__ import annotations
 
 import dataclasses
+import json
 import math
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -22,6 +26,9 @@ import numpy as np
 from affine import Affine
 from numpy.lib import recfunctions as rfn
 from pyproj import Transformer
+from rasterio.crs import CRS
+
+from ..dataanal import raster_io as rio
 
 IMERG = "NASA/GPM_L3/IMERG_V07"
 ERA5_LAND_STATIC = "ECMWF/ERA5_LAND/STATIC"
@@ -266,3 +273,75 @@ def fetch_imerg(grid: Grid, start: datetime, end: datetime, cache_dir: Path,
     rate = np.concatenate([r[1] for r in results])
     times, keep = np.unique(times, return_index=True)  # drop any duplicated time steps
     return times.astype("datetime64[ms]"), rate[keep]
+
+
+# --------------------------------------------------------------------------- GeoTIFF export
+
+
+def _rio_grid(g: Grid) -> rio.Grid:
+    return rio.Grid(CRS.from_string(g.crs), g.transform, g.width, g.height)
+
+
+def download_inputs(cfg, refresh: bool = False) -> list[Path]:
+    """Fetch every pipeline input for `cfg` (a HarnessConfig) as GeoTIFFs; cached files are kept
+    unless `refresh`. Returns the input paths."""
+    init(cfg.ee_project)
+    inputs, qa = cfg.inputs_dir, cfg.qa_dir
+    inputs.mkdir(parents=True, exist_ok=True)
+    qa.mkdir(parents=True, exist_ok=True)
+
+    geom, aoi = study_area(cfg.aoi_point, cfg.aoi_max_area_km2, cfg.aoi_bbox)
+    bounds = lonlat_bounds(geom)
+    grid, rgrid = utm_grid(bounds, cfg.scale_m), latlon_grid(bounds)
+    g30, g01 = _rio_grid(grid), _rio_grid(rgrid)
+    (qa / "study_area.json").write_text(json.dumps(
+        {**aoi, "bounds_lonlat": bounds, "grid_30m": g30.as_dict(), "grid_imerg": g01.as_dict()}, indent=2))
+    print(f"Study area: {aoi}; 30 m grid {grid.width} x {grid.height} ({grid.crs}); "
+          f"IMERG grid {rgrid.width} x {rgrid.height}")
+
+    def stale(*names):
+        return refresh or not all((inputs / n).exists() for n in names)
+
+    if stale("dem.tif", "soil_type.tif", "aoi.tif"):
+        print("Fetching FABDEM elevation, ERA5-Land soil type and the study-area mask")
+        dem, soil, basin = fetch(static_image(geom), grid, workers=cfg.workers)
+        rio.write(inputs / "dem.tif", dem, g30, description="FABDEM bare-earth elevation", units="m",
+                  tags={"RUSLE_ROLE": "dem", "SOURCE": FABDEM})
+        rio.write(inputs / "soil_type.tif", np.nan_to_num(soil, nan=255), g30, dtype="uint8", nodata=255,
+                  description="ERA5-Land soil_type (FAO texture class)", units="class",
+                  tags={"RUSLE_ROLE": "soil_type", "SOURCE": ERA5_LAND_STATIC})
+        rio.write(inputs / "aoi.tif", np.nan_to_num(basin), g30, dtype="uint8", nodata=255,
+                  description=f"study area ({aoi['source']})", units="mask", tags={"RUSLE_ROLE": "aoi"})
+
+    if stale("ndvi.tif", "water.tif"):
+        print("Fetching Landsat 8/9 monthly NDVI composites")
+        stack = fetch(ndvi_image(geom, cfg.c_start, cfg.c_end), grid, tile=256, workers=cfg.workers)
+        period = f"{cfg.c_start[:7]} to {np.datetime64(cfg.c_end, 'M') - 1}"
+        rio.write(inputs / "ndvi.tif", stack[:12], g30, description="Landsat 8/9 C2 L2 NDVI, calendar-month medians",
+                  units="NDVI", band_names=[f"ndvi_{m:02d}" for m in range(1, 13)],
+                  tags={"RUSLE_ROLE": "ndvi", "SOURCE": ", ".join(LANDSAT), "TIME_RANGE": period})
+        rio.write(inputs / "water.tif", np.nan_to_num(stack[13]), g30, dtype="uint8", nodata=255,
+                  description="water (Landsat MNDWI > 0)", units="mask", tags={"RUSLE_ROLE": "water"})
+        rio.write(qa / "landsat_clear_obs.tif", stack[14], g30, description="clear Landsat observations", units="count")
+        obs = stack[14][np.isfinite(stack[14])]
+        print(f"  clear Landsat observations per pixel: min {obs.min():.0f}, median {np.median(obs):.0f}")
+
+    for year in range(cfg.start_year, cfg.end_year + 1):
+        name = f"precip_{year}.tif"
+        if not stale(name):
+            continue
+        print(f"Fetching IMERG V07 half-hourly precipitation for {year}")
+        t0 = np.datetime64(f"{year}-01-01T00:00", "m")
+        n = int((np.datetime64(f"{year + 1}-01-01T00:00", "m") - t0) // np.timedelta64(30, "m"))
+        times, rate = fetch_imerg(rgrid, datetime(year, 1, 1), datetime(year + 1, 1, 1),
+                                  cfg.data_dir / "imerg_cache", workers=cfg.workers)
+        slot = ((times.astype("datetime64[m]") - t0) // np.timedelta64(30, "m")).astype(int)
+        ok = (slot >= 0) & (slot < n)
+        cube = np.full((n, rgrid.height, rgrid.width), np.nan, np.float32)  # gaps stay NaN
+        cube[slot[ok]] = rate[ok]
+        print(f"  {np.unique(slot[ok]).size} of {n} half-hours present")
+        rio.write(inputs / name, cube, g01, description="IMERG V07 half-hourly precipitation rate", units="mm/h",
+                  tags={"RUSLE_ROLE": "precip", "SOURCE": IMERG,
+                        "TIME_START": f"{year}-01-01T00:00:00Z", "TIME_STEP_MINUTES": 30})
+
+    return sorted(inputs.glob("*.tif"))
