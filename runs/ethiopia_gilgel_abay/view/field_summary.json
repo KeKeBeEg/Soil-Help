@@ -43,6 +43,7 @@
       "ESA/WorldCover/v200"
     ]
   },
+  "defaults_used": [],
   "units": {
     "soil_loss": "t/ha/yr",
     "soil_loss_window": "t/ha",
@@ -87,7 +88,7 @@
     "rain_total_mm": 525.1116950213909,
     "wettest_window_mm_day": 20.721237182617188,
     "wettest_window_end": "2024-07-23",
-    "erosive_storms": 12,
+    "erosive_storms": 9,
     "soil_loss": 0.2922972235291485,
     "soil_loss_pct_of_average_year": 6.5326274190614715,
     "worst_alert": "low",

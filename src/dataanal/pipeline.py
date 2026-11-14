@@ -28,6 +28,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import numpy as np
+from affine import Affine
+from rasterio.crs import CRS
 from rasterio.warp import Resampling
 from rasterio.warp import transform as warp_transform
 
@@ -134,8 +136,34 @@ def _rainfall(precip, params: Params) -> dict:
           f"({len(used)} complete years used for R), {pgrid.width} x {pgrid.height} px; {missing_pct:.2f}% missing")
     rf = factors.r_factor(rate, times, used, step_h)
     days, daily = factors.daily_totals(rate, times, step_h)
+    ei_day, storms_day = factors.storms_by_day(rate, times, days, step_h)
     return {"grid": pgrid, "step_h": step_h, "years": years, "used": used, "coverage": coverage,
-            "missing_pct": missing_pct, "rf": rf, "days": days, "daily": daily}
+            "missing_pct": missing_pct, "rf": rf, "days": days, "daily": daily, "ei_day": ei_day,
+            "storms_day": storms_day}
+
+
+RAIN_RECORD = "rain_daily.npz"
+
+
+def save_rain_record(path, rain: dict) -> Path:
+    """Day-by-day rain on the rain grid's cells over the whole record: daily total (mm), EI30
+    and number of the erosive storms starting that day. Views for any dates inside the record
+    are computed from this file alone, with storms found once on the continuous record."""
+    g = rain["grid"]
+    with open(path, "wb") as f:
+        np.savez_compressed(f, days=rain["days"].astype("datetime64[D]").astype("int64"),
+                            rain=rain["daily"].astype(np.float32), ei=rain["ei_day"].astype(np.float32),
+                            storms=rain["storms_day"].astype(np.uint16), transform=np.array(list(g.transform)[:6]),
+                            crs=np.array(g.crs.to_wkt()))
+    return Path(path)
+
+
+def load_rain_record(path) -> dict:
+    with np.load(path, allow_pickle=False) as z:
+        rain = z["rain"]
+        grid = rio.Grid(CRS.from_wkt(str(z["crs"])), Affine(*z["transform"][:6]), rain.shape[2], rain.shape[1])
+        return {"days": z["days"].astype("datetime64[D]"), "daily": rain.astype(float), "ei_day": z["ei"].astype(float),
+                "storms_day": z["storms"].astype(float), "grid": grid}
 
 
 def _soil(layers: dict, grid: rio.Grid, params: Params) -> dict:
@@ -368,6 +396,7 @@ def run(inputs, out_dir, params: Params | None = None) -> dict:
         out("landslide_class_wettest", slide["class_wettest"], "uint8", 255,
             tags={**{f"CLASS_{k}": v for k, v in ls.CLASS_NAMES.items()}, "WINDOW_END": slide["wettest_day"]})
         out("landslide_danger_days", slide["danger_days"])
+    save_rain_record(out_dir / RAIN_RECORD, rain)
 
     # ------------------------------------------------------------------ summary
     px_ha = grid.xres * grid.yres / 1e4

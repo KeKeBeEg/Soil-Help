@@ -8,11 +8,16 @@ Each dataset is pulled over the area it needs:
   rain_grid   the 0.1 deg IMERG cells over the field plus one cell on every side
 Grids are snapped to whole multiples of the resolution, so the same field always maps to the
 same cache files and field_grid sits exactly on dem_grid's lattice.
+
+The analysis version and period live in analysis_version.json at the repository root, shared
+with anything else that reads saved analyses (the time slider covers that period).
 """
 from __future__ import annotations
 
+import json
 import math
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 from affine import Affine
@@ -24,13 +29,21 @@ from ..dataanal import raster_io as rio
 from ..ingest import shared
 from . import region
 
-CLIMATE_YEARS = (2016, 2025)  # the analysis period (R, cover, landslide record); t_range only picks views
+_SHARED = json.loads((Path(__file__).resolve().parents[2] / "analysis_version.json").read_text(encoding="utf-8"))
+VERSION = int(_SHARED["version"])  # a saved analysis with another version is redone
+CLIMATE_YEARS = tuple(_SHARED["climate_years"])  # the analysis period (R, cover, landslide record); t_range only picks views
 RES_M = {"us": 10.0, "global": 30.0}
 FIELD_MARGIN_M = 500.0
 DEM_MIN_MARGIN_M = 1000.0
 DEM_MAX_MARGIN_M = 5000.0
 RAIN_RES_DEG = 0.1
-VERSION = 2  # bump to invalidate every cached analysis (e.g. after a model change)
+
+
+def request_key(polygon_lonlat, path: str) -> dict:
+    """The part of a plan's fingerprint known without the HydroBASINS lookup. The grids follow
+    from it (and from the cached sub-basins), so a saved analysis with the same key is current."""
+    return {"version": VERSION, "path": path, "res_m": RES_M[path], "climate_years": list(CLIMATE_YEARS),
+            "polygon": [[round(x, 6), round(y, 6)] for x, y in polygon_lonlat]}
 
 
 @dataclass
@@ -47,8 +60,8 @@ class Plan:
     basins: dict
 
     def fingerprint(self) -> dict:
-        return {"version": VERSION, "path": self.path, "res_m": self.res, "climate_years": list(self.climate_years),
-                "polygon": [[round(x, 6), round(y, 6)] for x, y in self.field_lonlat],
+        """Saved as analysis/plan.json; the views rebuild the field and rain grid from it."""
+        return {**request_key(self.field_lonlat, self.path), "climate_years": list(self.climate_years),
                 "dem_grid": self.dem_grid.as_dict(), "field_grid": self.field_grid.as_dict(),
                 "rain_grid": self.rain_grid.as_dict()}
 

@@ -49,6 +49,25 @@ def storm_ei30(rate_mm_h, step_h: float = 0.5):
     return first_wet[keep], total[keep], energy[keep], i30[keep], (energy * i30)[keep]
 
 
+def storms_by_day(rate, times, days, step_h: float = 0.5):
+    """Erosive storms of a (T, H, W) rain-rate cube, booked on the day each storm starts.
+
+    Returns (ei, count), each (D, H, W) over `days`: the summed EI30 and the number of erosive
+    storms that start on each day. Storms are found on the whole series, so the sum over any
+    split of `days` into ranges equals the sum over the whole: no storm is cut at a range edge."""
+    day_of = np.asarray(times).astype("datetime64[D]")
+    ei_day = np.zeros((days.size,) + rate.shape[1:])
+    n_day = np.zeros((days.size,) + rate.shape[1:])
+    for r in range(rate.shape[1]):
+        for c in range(rate.shape[2]):
+            start, _, _, _, ei = storm_ei30(rate[:, r, c], step_h)
+            d = (day_of[start] - days[0]).astype(int)
+            ok = (d >= 0) & (d < days.size)
+            np.add.at(ei_day[:, r, c], d[ok], ei[ok])
+            np.add.at(n_day[:, r, c], d[ok], 1)
+    return ei_day, n_day
+
+
 def daily_totals(rate, times, step_h: float = 0.5):
     """Daily rain (mm) from a (T, H, W) rain-rate cube with sorted datetime64 `times`.
 

@@ -52,6 +52,7 @@
       "USDA/NASS/CDL/2025"
     ]
   },
+  "defaults_used": [],
   "units": {
     "soil_loss": "tons/acre/yr",
     "soil_loss_window": "tons/acre",
@@ -99,7 +100,7 @@
     "rain_total_mm": 203.62895741395187,
     "wettest_window_mm_day": 64.04291534423828,
     "wettest_window_end": "2024-09-27",
-    "erosive_storms": 2,
+    "erosive_storms": 1,
     "soil_loss": 0.6402204342258265,
     "soil_loss_pct_of_average_year": 8.918238045081198,
     "worst_alert": "low",

@@ -100,9 +100,14 @@ request.json ─► path: CONUS? ─► plan grids ─► pull missing data ─�
    from Earth Engine through `computePixels` (direct downloads, no Drive exports).
 4. **Analysis** (`src/dataanal/pipeline.py`) over the **fixed period 2016–2025**: rainfall
    erosivity, cover and the landslide rain record all use these ten years, whatever `t_range`
-   says. Results go to `working_save/analysis/`, stamped with the plan (`plan.json`); a later
-   request for the same field with the same plan skips the data and analysis steps.
-5. **Views** (`src/backend/views.py`) for `t_range`, over the field only: see section 4.
+   says. The period and the analysis version live in `analysis_version.json` (repository
+   root); bump `version` whenever the period, a model, the grids or the outputs change.
+   Results go to `working_save/analysis/`, stamped with the plan (`plan.json`). A later
+   request for the same field, data path, period and version skips the plan, data and
+   analysis steps, unless the saved analysis used a default for a layer that could not be
+   pulled (e.g. ISRIC timed out): that analysis is redone so the pull is retried.
+5. **Views** (`src/backend/views.py`) for `t_range`, over the field only: see section 4. They
+   are rendered from `analysis/` alone; only dates outside 2016–2025 read rain from the cache.
 
 ---
 
@@ -113,9 +118,23 @@ working_save/
   request.json      copy of the request
   inputs/           the analysis inputs (GeoTIFF; rain as precip_<year>.npz, since GDAL needs ~15 s per
                     17,520-band GeoTIFF); python -m src.dataanal.pipeline --out X <this folder> reproduces the analysis
-  analysis/         long-term results over the field + 500 m, summary.json, rusle_maps.png, rainfall_erosivity.png, landslide_maps.png
+  analysis/         long-term results over the field + 500 m, summary.json, rusle_maps.png, rainfall_erosivity.png, landslide_maps.png,
+                    plan.json, rain_daily.npz, <range layer>_by_year.tif and daily_series.csv (see below)
   view/             results for the selected dates over the field only, field_summary.json, field_maps.png, timeline.png
 ```
+
+**Time slider files (`analysis/`, 2016–2025).**
+
+| File | Content |
+|---|---|
+| `rain_daily.npz` | Day by day on the IMERG cells: rain (mm), EI30 and number of the erosive storms starting that day. Storms are found once on the continuous record, so no range edge cuts a storm |
+| `soil_loss_window_by_year.tif` | One band per year (band names 2016 … 2025), tag `COMBINE=sum` |
+| `landslide_peak_class_by_year.tif`, `landslide_peak_probability_by_year.tif`, `rain_window_max_by_year.tif` | One band per year, tag `COMBINE=max` |
+| `daily_series.csv` | The field's daily numbers: rain, 3-day mean rain, soil loss (t/ha), erosive storms, share of the field at each alert level |
+
+Any run of whole years is the band-wise sum (or max) of its yearly bands, and equals what
+`view/` shows for those dates (checked to float32 rounding on both demo cases and in
+`tests/test_backend.py`). A storm counts on the day it starts, with all its rain.
 
 **`view/` (what the app shows).** All rasters cover the field's bounding box, no-data outside
 the field polygon, in the analysis CRS (UTM), SI units:
@@ -205,9 +224,9 @@ that day's 3-day rain compared with these thresholds. Details and the lookup tab
 
 | Run | Time |
 |---|---|
-| New field, nothing cached | ~3–5 min (10 years of half-hourly IMERG ≈ 240 requests, Landsat composites, terrain, soil); ISRIC's depth-to-bedrock server can add minutes or time out (then the run continues with the 1 m default) |
-| Same field, data cached, analysis redone (`--refresh`) | 15–25 s |
-| Same field, only `t_range` changed | 2–3 s |
+| New field, nothing cached | ~3–5 min (10 years of half-hourly IMERG ≈ 240 requests, Landsat composites, terrain, soil); ISRIC's depth-to-bedrock server can add minutes or time out (then the run continues with the 1 m default, caches nothing for it, notes it in `field_summary.json` → `defaults_used`, and the next run retries) |
+| Same field, data cached, analysis redone (`--refresh`) | 20–25 s |
+| Same field, only `t_range` changed (inside 2016–2025) | ~2 s, no Earth Engine, no cache |
 
 The Helene result is the model's main limitation in one picture: IMERG averages rain over ~10 km
 cells and misses the mountain peaks that triggered thousands of landslides, and the thresholds are

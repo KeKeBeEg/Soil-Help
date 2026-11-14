@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "path": "us",
   "res_m": 10.0,
   "climate_years": [
@@ -69,5 +69,6 @@
     "width": 3,
     "height": 3,
     "res_m": 0.1
-  }
+  },
+  "defaults_used": []
 }

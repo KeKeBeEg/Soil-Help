@@ -13,7 +13,7 @@
   numeric key ("10" comes after "9"). A list of vertices also works, and so do "(x, y)"
   strings. The ring is closed automatically.
 - t_range: first and last day (inclusive) of the period to show. It only changes the
-  views; the analysis always runs over the fixed climate period (see plan.CLIMATE_YEARS).
+  views; the analysis always runs over the fixed climate period (analysis_version.json).
 - Paths may be relative; they are resolved against the request file's folder.
 """
 from __future__ import annotations

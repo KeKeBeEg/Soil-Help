@@ -1,0 +1,5 @@
+{
+  "version": 3,
+  "climate_years": [2016, 2025],
+  "rule": "Bump version whenever climate_years, the models, the grids or the analysis outputs change. A saved analysis stamped with another version is redone on its next run. The time slider covers climate_years."
+}

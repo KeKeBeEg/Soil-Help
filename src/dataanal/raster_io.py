@@ -84,6 +84,11 @@ def grid_of(r: Raster) -> Grid:
     return Grid(r.crs, r.transform, r.data.shape[2], r.data.shape[1])
 
 
+def grid_from_dict(d: dict) -> Grid:
+    """Inverse of Grid.as_dict."""
+    return Grid(CRS.from_string(d["crs"]), Affine(*d["transform"][:6]), int(d["width"]), int(d["height"]))
+
+
 # --------------------------------------------------------------------------- reading
 
 

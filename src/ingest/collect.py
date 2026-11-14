@@ -23,18 +23,21 @@ def _copy(src: Path, dst: Path) -> Path:
     return dst
 
 
-def _optional(pull, what: str):
-    """Pull an optional layer; on failure say so and return None (the analysis then uses its
-    default for that quantity). Nothing is cached for a failed pull, so the next run retries."""
+def _optional(pull, what: str, defaults: list):
+    """Pull an optional layer; on failure say so, add `what` to `defaults` and return None (the
+    analysis then uses its default for that quantity). Nothing is cached for a failed pull, and
+    the backend redoes an analysis that used a default, so the next run retries the pull."""
     try:
         return pull()
     except Exception as err:  # noqa: BLE001 - any network or server failure
         print(f"  {what} unavailable ({str(err).splitlines()[0][:150]}); continuing with the default")
+        defaults.append(what)
         return None
 
 
-def collect(plan, inputs_dir, global_cache, us_cache) -> list[Path]:
-    """Fill `inputs_dir` with every analysis input for `plan` (a backend.plan.Plan)."""
+def collect(plan, inputs_dir, global_cache, us_cache) -> tuple[list[Path], list[str]]:
+    """Fill `inputs_dir` with every analysis input for `plan` (a backend.plan.Plan).
+    Returns the input paths and the optional layers that could not be pulled (defaults used)."""
     inputs_dir = Path(inputs_dir)
     inputs_dir.mkdir(parents=True, exist_ok=True)
     for old in [*inputs_dir.glob("*.tif"), *inputs_dir.glob("*.npz")]:  # stale roles would be picked up
@@ -42,6 +45,7 @@ def collect(plan, inputs_dir, global_cache, us_cache) -> list[Path]:
     gc, uc = Path(global_cache), Path(us_cache)
     years = range(plan.climate_years[0], plan.climate_years[1] + 1)
     fg = plan.field_grid
+    defaults: list[str] = []
 
     paths = shared.precip_year_files(plan.rain_grid, years, gc, inputs_dir)
     paths += shared.landsat_inputs(fg, years, gc, inputs_dir)
@@ -51,18 +55,18 @@ def collect(plan, inputs_dir, global_cache, us_cache) -> list[Path]:
     if plan.path == "global":
         paths.append(_copy(global_data.dem(plan.dem_grid, gc), inputs_dir / "dem.tif"))
         paths.append(_copy(global_data.soil_texture(fg, gc), inputs_dir / "soil_texture.tif"))
-        depth = _optional(lambda: global_data.soil_depth(fg, gc), "Depth to bedrock")
+        depth = _optional(lambda: global_data.soil_depth(fg, gc), "Depth to bedrock", defaults)
         if depth is not None:
             paths.append(_copy(depth, inputs_dir / "soil_depth.tif"))
         paths.append(_copy(global_data.landcover(fg, gc), inputs_dir / "landcover.tif"))
-        return paths
+        return paths, defaults
 
     paths.append(_copy(us_data.dem(plan.dem_grid, uc), inputs_dir / "dem.tif"))
     survey = rio.read(us_data.ssurgo(fg, uc)).data
     band = dict(zip(us_data.SSURGO_BANDS, survey))
     # Holes in the survey (water, urban land, rock outcrop, unmapped) fall back to global data.
     soilgrids = rio.read(global_data.soil_texture(fg, gc)).data
-    bedrock_path = _optional(lambda: global_data.soil_depth(fg, gc), "Depth to bedrock (gap filler)")
+    bedrock_path = _optional(lambda: global_data.soil_depth(fg, gc), "Depth to bedrock (gap filler)", defaults)
     bedrock = rio.read(bedrock_path).data[0] if bedrock_path else np.full((fg.height, fg.width), np.nan)
     has_texture = np.isfinite(band["sand"])
     texture = np.where(has_texture, survey[4:8], soilgrids)
@@ -83,4 +87,4 @@ def collect(plan, inputs_dir, global_cache, us_cache) -> list[Path]:
                            tags={"RUSLE_ROLE": "soil_texture", "SOURCE": f"{src} + SoilGrids 2.0"}))
     year = min(plan.climate_years[1], LATEST_CDL_YEAR)
     paths.append(_copy(us_data.landcover(fg, uc, year), inputs_dir / "landcover.tif"))
-    return paths
+    return paths, defaults
