@@ -6,7 +6,8 @@
 
 Steps: read the request; pick the data path (polygon inside CONUS -> US data, otherwise
 global data); plan the grids; pull missing data into the caches and assemble the analysis
-inputs; run the analysis over the fixed climate period; render the views for t_range.
+inputs; run the analysis over the fixed climate period; on the US path, pull the fine
+terrain for the water simulation (1 m lidar, ~10 m fallback); render the views for t_range.
 The analysis is skipped when working_save already holds one for the same field, data path,
 period and analysis version (analysis_version.json) that used no default for a missing
 layer. Then only the views are rendered, from analysis/ alone: a request that only changes
@@ -18,6 +19,8 @@ working_save/
   analysis/      long-term outputs over the field + margin, summary.json, figures, plan.json,
                  rain_daily.npz, yearly range layers and daily_series.csv over the field
   view/          outputs for t_range over the field, field_summary.json, figures
+  terrain/       US path only: 1 m elevation over the field + margin for the water simulation
+                 (dem.tif, dem_source.tif, terrain.json; see src/ingest/terrain.py)
 """
 from __future__ import annotations
 
@@ -29,7 +32,7 @@ import time
 from pathlib import Path
 
 from ..dataanal import pipeline
-from ..ingest import collect
+from ..ingest import collect, terrain
 from . import plan as planner, region, request, views
 
 
@@ -79,6 +82,8 @@ def run(request_path, refresh: bool = False) -> dict:
     else:
         print("Analysis is up to date for this field: rendering the selected dates only")
     summary = views.render(req, analysis_dir, ws / "view")
+    if path == "us":  # after the views: they never wait on (or fail with) the fine terrain
+        terrain.ensure(analysis_dir, ws / "terrain", req.us_cache, refresh=refresh)
     print(f"Done in {time.time() - t0:.0f} s. Outputs in {ws}")
     for line in summary["advice"]:
         print(f"  - {line}")

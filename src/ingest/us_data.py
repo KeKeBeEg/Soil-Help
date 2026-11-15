@@ -1,6 +1,8 @@
 """US-path datasets (CONUS), cached in the US cache.
 
   USGS 3DEP 1/3 arc-second (~10 m)   USGS/3DEP/10m_collection (Earth Engine)
+  USGS 3DEP 1 m lidar DEM            USGS/3DEP/1m (Earth Engine); fine terrain for the water
+                                     simulation, see terrain.py
   SSURGO soil survey                 gNATSGO map-unit raster, 10 m (Earth Engine community catalog,
                                      projects/sat-io/open-datasets/gNATSGO) + map-unit properties
                                      from USDA Soil Data Access (SQL over HTTPS)
@@ -26,6 +28,7 @@ from ..dataanal import raster_io as rio
 from . import cache, ee_io
 
 DEM_3DEP = "USGS/3DEP/10m_collection"
+DEM_3DEP_1M = "USGS/3DEP/1m"
 GNATSGO = "projects/sat-io/open-datasets/gNATSGO/raster/mukey"
 CDL = "USDA/NASS/CDL"
 SDA_URL = "https://sdmdataaccess.sc.egov.usda.gov/Tabular/post.rest"
@@ -50,6 +53,17 @@ def dem(grid: rio.Grid, cache_dir: Path) -> Path:
                       lambda: ee.ImageCollection(DEM_3DEP).map(lambda im: im.resample("bilinear")).mosaic().select("elevation"),
                       description="USGS 3DEP 1/3 arc-second elevation", units="m",
                       tags={"RUSLE_ROLE": "dem", "SOURCE": DEM_3DEP})
+
+
+def dem_lidar(grid: rio.Grid, cache_dir: Path) -> Path:
+    """USGS 3DEP 1 m lidar elevation on `grid`, NaN where no 1 m project covers a cell (terrain.py
+    fills those from `dem`). USGS keeps publishing 1 m projects: delete the cache file to pull
+    the current coverage again."""
+    print("Elevation, fine: USGS 3DEP 1 m lidar DEM")
+    return _ee_raster("3dep_1m", grid, cache_dir,
+                      lambda: ee.ImageCollection(DEM_3DEP_1M).map(lambda im: im.resample("bilinear")).mosaic().select("elevation"),
+                      description="USGS 3DEP 1 m lidar elevation (NaN = no 1 m coverage)", units="m",
+                      tags={"SOURCE": DEM_3DEP_1M})
 
 
 def landcover(grid: rio.Grid, cache_dir: Path, year: int) -> Path:

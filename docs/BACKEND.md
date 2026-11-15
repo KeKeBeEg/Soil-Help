@@ -85,6 +85,7 @@ request.json ─► path: CONUS? ─► plan grids ─► pull missing data ─�
    | Layer | US path | Global path | Cache |
    |---|---|---|---|
    | Elevation | USGS 3DEP 1/3″ (`USGS/3DEP/10m_collection`) | FABDEM 30 m (`projects/sat-io/open-datasets/FABDEM`) | us / global |
+   | Fine elevation (water simulation) | USGS 3DEP 1 m lidar (`USGS/3DEP/1m`), gaps from 3DEP 1/3″ | – | us |
    | Soil erodibility K | SSURGO `kwfact` → SI | Williams equation from SoilGrids texture + organic carbon | us / global |
    | Soil-loss tolerance T | SSURGO `tfact` (1–5 t/ac/yr) | 11 t/ha/yr | us / – |
    | Soil texture | SSURGO 0–30 cm (gaps: SoilGrids) | SoilGrids 2.0, 0–30 cm | us + global / global |
@@ -106,7 +107,10 @@ request.json ─► path: CONUS? ─► plan grids ─► pull missing data ─�
    request for the same field, data path, period and version skips the plan, data and
    analysis steps, unless the saved analysis used a default for a layer that could not be
    pulled (e.g. ISRIC timed out): that analysis is redone so the pull is retried.
-5. **Views** (`src/backend/views.py`) for `t_range`, over the field only: see section 4. They
+5. **Fine terrain** (US path only, `src/ingest/terrain.py`): the field grid pulled again at 1 m
+   for the water simulation, see section 4. Redone only when the field grid changes, with
+   `--refresh`, or when the last 1 m pull failed.
+6. **Views** (`src/backend/views.py`) for `t_range`, over the field only: see section 4. They
    are rendered from `analysis/` alone; only dates outside 2016–2025 read rain from the cache.
 
 ---
@@ -121,6 +125,7 @@ working_save/
   analysis/         long-term results over the field + 500 m, summary.json, rusle_maps.png, rainfall_erosivity.png, landslide_maps.png,
                     plan.json, rain_daily.npz, <range layer>_by_year.tif and daily_series.csv (see below)
   view/             results for the selected dates over the field only, field_summary.json, field_maps.png, timeline.png
+  terrain/          US path only: 1 m elevation over the field + 500 m for the water simulation (below)
 ```
 
 **Time slider files (`analysis/`, 2016–2025).**
@@ -168,6 +173,22 @@ daily soil loss).
 
 ---
 
+**`terrain/` (US path, for the water simulation).** The analysis stays at 10 m: slope length and
+wetness need the whole sub-basin, which at 1 m would be up to 100 million cells. Surface water
+needs the relief a 10 m model smooths away (furrows, ditches, terraces, road embankments), so the
+field grid is pulled again at 1 m, with the same footprint and origin (each 10 m analysis cell
+holds exactly 100 fine cells):
+
+| File | Content |
+|---|---|
+| `dem.tif` | Bare-earth elevation (m, NAVD88). USGS 3DEP 1 m lidar where a 1 m project covers the cell; elsewhere 3DEP 1/3″ (the analysis DEM) resampled bilinearly to 1 m |
+| `dem_source.tif` | 1 = 3DEP 1 m lidar, 2 = 3DEP ~10 m fallback, 255 = no data |
+| `terrain.json` | Grid, resolution, share of the field and of the grid on lidar, sources, and `lidar_pull_failed` (the error, when the 1 m pull failed and the fallback was used everywhere; the next run retries) |
+
+A field whose grid would exceed 16 million cells at 1 m (about 4 × 4 km) is pulled at 2 m, then
+5 m. Where lidar meets the fallback the surface can step by a few decimetres. Helene demo field:
+1,200 × 1,170 cells.
+
 ## 5. Caches
 
 Both cache folders are ours; their layout:
@@ -180,6 +201,8 @@ global_cache/
   fabdem/ soilgrids/ bedrock_depth/ worldcover/   <grid>.tif
 us_cache/
   3dep/ cdl_<year>/                     <grid>.tif
+  3dep_1m/<grid>.tif                    1 m lidar on the fine grid, NaN where no 1 m project exists
+                                        (USGS adds projects: delete the file to pull the current coverage)
   ssurgo/<grid>.tif                     gNATSGO map-unit keys
   ssurgo/<grid>_properties.tif / .csv   SSURGO properties per cell / per map unit
 ```
@@ -226,7 +249,7 @@ that day's 3-day rain compared with these thresholds. Details and the lookup tab
 |---|---|
 | New field, nothing cached | ~3–5 min (10 years of half-hourly IMERG ≈ 240 requests, Landsat composites, terrain, soil); ISRIC's depth-to-bedrock server can add minutes or time out (then the run continues with the 1 m default, caches nothing for it, notes it in `field_summary.json` → `defaults_used`, and the next run retries) |
 | Same field, data cached, analysis redone (`--refresh`) | 20–25 s |
-| Same field, only `t_range` changed (inside 2016–2025) | ~2 s, no Earth Engine, no cache |
+| Same field, only `t_range` changed (inside 2016–2025) | ~2 s, no Earth Engine, no cache (after the first run with fine terrain) |
 
 The Helene result is the model's main limitation in one picture: IMERG averages rain over ~10 km
 cells and misses the mountain peaks that triggered thousands of landslides, and the thresholds are
