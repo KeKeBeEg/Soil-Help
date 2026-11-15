@@ -46,10 +46,15 @@ export async function r2GetJson<T>(key: string): Promise<T | null> {
 }
 
 export async function r2PutJson(key: string, value: unknown, cacheControl = 'no-store'): Promise<void> {
-  const res = await aws().fetch(objectUrl(key), {
+  const body = JSON.stringify(value);
+  // Sign, then send the body as plain text. Passing the signed Request object itself through
+  // Next.js's fetch turns the body into a stream with no Content-Length, which R2 refuses
+  // (411 MissingContentLength).
+  const signed = await aws().sign(objectUrl(key), {
     method: 'PUT',
-    body: JSON.stringify(value),
+    body,
     headers: { 'Content-Type': 'application/json', 'Cache-Control': cacheControl },
   });
+  const res = await fetch(signed.url, { method: 'PUT', headers: signed.headers, body });
   if (!res.ok) throw new Error(`R2 PUT ${key}: ${res.status} ${await res.text()}`);
 }
