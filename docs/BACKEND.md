@@ -110,6 +110,9 @@ request.json ─► path: CONUS? ─► plan grids ─► pull missing data ─�
 5. **Fine terrain** (US path only, `src/ingest/terrain.py`): the field grid pulled again at 1 m
    for the water simulation, see section 4. Redone only when the field grid changes, with
    `--refresh`, or when the last 1 m pull failed.
+   **Where rain collects** (`src/backend/water.py`, `src/dataanal/ponding.py`): hollows,
+   their catchments and fill-and-spill on that 1 m terrain, see section 4. Redone when the
+   terrain or the storm settings change.
 6. **Views** (`src/backend/views.py`) for `t_range`, over the field only: see section 4. They
    are rendered from `analysis/` alone; only dates outside 2016–2025 read rain from the cache.
 
@@ -126,6 +129,7 @@ working_save/
                     plan.json, rain_daily.npz, <range layer>_by_year.tif and daily_series.csv (see below)
   view/             results for the selected dates over the field only, field_summary.json, field_maps.png, timeline.png
   terrain/          US path only: 1 m elevation over the field + 500 m for the water simulation (below)
+  water/            US path only: where rain collects on that terrain, and how much (below)
 ```
 
 **Time slider files (`analysis/`, 2016–2025).**
@@ -183,11 +187,42 @@ holds exactly 100 fine cells):
 |---|---|
 | `dem.tif` | Bare-earth elevation (m, NAVD88). USGS 3DEP 1 m lidar where a 1 m project covers the cell; elsewhere 3DEP 1/3″ (the analysis DEM) resampled bilinearly to 1 m |
 | `dem_source.tif` | 1 = 3DEP 1 m lidar, 2 = 3DEP ~10 m fallback, 255 = no data |
+| `dem_context.tif` | The ~10 m analysis DEM over the sub-basin: traces the runoff that enters the 1 m area from outside it |
 | `terrain.json` | Grid, resolution, share of the field and of the grid on lidar, sources, and `lidar_pull_failed` (the error, when the 1 m pull failed and the fallback was used everywhere; the next run retries) |
 
 A field whose grid would exceed 16 million cells at 1 m (about 4 × 4 km) is pulled at 2 m, then
 5 m. Where lidar meets the fallback the surface can step by a few decimetres. Helene demo field:
 1,200 × 1,170 cells.
+
+**`water/` (US path): where rain collects, and how much.** On the 1 m terrain
+(`src/dataanal/ponding.py`):
+
+1. **Hollows**: areas the depression-filled DEM raises above the ground, i.e. water there cannot
+   drain until it reaches the hollow's spill level. Hollows shallower than 2 cm or holding less
+   than 0.1 m³ are lidar noise and ignored.
+2. **Catchments**: each cell's runoff follows D8 steepest descent to the first hollow it reaches.
+   Runoff from outside the 1 m area enters where `dem_context.tif` says it does.
+3. **Fill-and-spill**: upstream first, each hollow keeps what fits and passes the rest to the
+   next hollow downhill, or off the grid. Water stands at one level per hollow.
+
+Runoff is rain × `RUNOFF_FRACTION` (1: soaked soil, every drop runs off, as during Helene).
+Infiltration, evaporation and timing are not modelled: it is the water left standing once a
+storm has run off, the worst case for that rain total. Settings live at the top of
+`src/backend/water.py`.
+
+| File | Content |
+|---|---|
+| `water_depth.tif` | Standing water (m) after each storm in `STORMS_MM` (25, 50, 100, 200 mm), one band each |
+| `fill_rain.tif` | Rain (mm) that brings each hollow brim-full, overflow from hollows upstream included. For any storm, every hollow under that number is full |
+| `hollow_depth.tif` | Water depth (m) with every hollow brim-full |
+| `flow_area.tif` | Area (m²) draining through each cell: the paths runoff takes |
+| `hollows.json` | Every hollow touching the field: location, area, capacity, depth, catchment, fill rain, water held per storm |
+| `water.json` | Field totals per storm (water standing, wet share, deepest point, hollows holding water) and the settings |
+| `water_maps.png` | Hollows by fill rain with flow paths, and standing water after 100 mm; whole 1 m area and the field |
+
+The `field-run` workflow publishes `terrain/` and `water/` under `fields/v<version>/<field_id>/`,
+adds both to `entry.json`, and attaches `water_maps.png` with the summaries to the run page
+(artifact `water-<field_id>`).
 
 ## 5. Caches
 

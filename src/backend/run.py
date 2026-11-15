@@ -20,7 +20,9 @@ working_save/
                  rain_daily.npz, yearly range layers and daily_series.csv over the field
   view/          outputs for t_range over the field, field_summary.json, figures
   terrain/       US path only: 1 m elevation over the field + margin for the water simulation
-                 (dem.tif, dem_source.tif, terrain.json; see src/ingest/terrain.py)
+                 (dem.tif, dem_source.tif, dem_context.tif, terrain.json; see src/ingest/terrain.py)
+  water/         US path only: where rain collects on the 1 m terrain and how much, for a set of
+                 storms (see src/backend/water.py)
 """
 from __future__ import annotations
 
@@ -33,7 +35,7 @@ from pathlib import Path
 
 from ..dataanal import pipeline
 from ..ingest import collect, terrain
-from . import plan as planner, region, request, views
+from . import plan as planner, region, request, views, water
 
 
 LAST_FILE = "daily_series.csv"  # written last: an analysis without it was interrupted
@@ -83,7 +85,8 @@ def run(request_path, refresh: bool = False) -> dict:
         print("Analysis is up to date for this field: rendering the selected dates only")
     summary = views.render(req, analysis_dir, ws / "view")
     if path == "us":  # after the views: they never wait on (or fail with) the fine terrain
-        terrain.ensure(analysis_dir, ws / "terrain", req.us_cache, refresh=refresh)
+        if terrain.ensure(analysis_dir, ws / "terrain", req.us_cache, refresh=refresh) is not None:
+            water.ensure(analysis_dir, ws / "terrain", ws / "water", refresh=refresh)
     print(f"Done in {time.time() - t0:.0f} s. Outputs in {ws}")
     for line in summary["advice"]:
         print(f"  - {line}")

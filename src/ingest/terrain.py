@@ -12,6 +12,8 @@ grid (the field plus 500 m) is pulled again at 1 m. Per cell:
 working_save/terrain/
   dem.tif          elevation (m, NAVD88) on the fine grid
   dem_source.tif   1 = USGS 3DEP 1 m lidar, 2 = 3DEP ~10 m resampled (fallback), 255 = none
+  dem_context.tif  the ~10 m analysis DEM over the whole sub-basin: what drains into the 1 m
+                   area from outside it (used by src/backend/water.py)
   terrain.json     grids, resolution, share of the field and of the grid on lidar, sources
 
 The fine grid has the field grid's footprint and origin, so each 10 m analysis cell holds
@@ -36,7 +38,7 @@ from rasterio.warp import transform as warp_transform
 from ..dataanal import raster_io as rio
 from . import us_data
 
-VERSION = 1  # bump when the grid, the merge or the files change
+VERSION = 2  # bump when the grid, the merge or the files change (2: dem_context.tif)
 FINE_RES_M = (1.0, 2.0, 5.0)  # finest first; the first that fits MAX_CELLS is used
 MAX_CELLS = 16_000_000  # 4 x 4 km at 1 m, 64 MB of float32
 SOURCE_LIDAR, SOURCE_FALLBACK, SOURCE_NONE = 1, 2, 255
@@ -44,7 +46,7 @@ SOURCES = {
     SOURCE_LIDAR: f"USGS 3DEP 1 m lidar DEM ({us_data.DEM_3DEP_1M})",
     SOURCE_FALLBACK: f"USGS 3DEP 1/3 arc-second (~10 m), bilinear ({us_data.DEM_3DEP})",
 }
-DEM_FILE, SOURCE_FILE, META_FILE = "dem.tif", "dem_source.tif", "terrain.json"  # META_FILE is written last
+DEM_FILE, SOURCE_FILE, CONTEXT_FILE, META_FILE = "dem.tif", "dem_source.tif", "dem_context.tif", "terrain.json"  # META last
 
 
 def fine_grid(field_grid: rio.Grid) -> rio.Grid | None:
@@ -97,7 +99,7 @@ def _fallback_dem(analysis_dir: Path, dem_grid: rio.Grid, us_cache) -> rio.Raste
 
 def _is_current(out_dir: Path, key: dict) -> bool:
     meta_path = out_dir / META_FILE
-    if not (meta_path.exists() and (out_dir / DEM_FILE).exists() and (out_dir / SOURCE_FILE).exists()):
+    if not all((out_dir / f).exists() for f in (META_FILE, DEM_FILE, SOURCE_FILE, CONTEXT_FILE)):
         return False
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
     if any(meta.get(k) != v for k, v in key.items()):
@@ -128,8 +130,8 @@ def ensure(analysis_dir, out_dir, us_cache, refresh: bool = False) -> dict | Non
 
     print(f"Fine terrain: {grid.width} x {grid.height} cells at {grid.xres:g} m")
     try:
-        fallback = rio.align_raster(_fallback_dem(Path(analysis_dir), rio.grid_from_dict(stamp["dem_grid"]), us_cache),
-                                    grid)[0]
+        context = _fallback_dem(Path(analysis_dir), rio.grid_from_dict(stamp["dem_grid"]), us_cache)
+        fallback = rio.align_raster(context, grid)[0]
     except Exception as err:  # noqa: BLE001 - no Earth Engine login, network or server failure
         print(f"  Fine terrain skipped: the ~10 m elevation is not cached and could not be pulled ({_first_line(err)}). "
               "Log in with `earthengine authenticate`; the next run tries again")
@@ -148,8 +150,8 @@ def ensure(analysis_dir, out_dir, us_cache, refresh: bool = False) -> dict | Non
     share_field = 100 * float(on_lidar[field].mean()) if field.any() else 0.0
     share_grid = 100 * float(on_lidar.mean())
     finite = elevation[np.isfinite(elevation)]
-    print(f"  1 m lidar covers {share_field:.0f}% of the field and {share_grid:.0f}% of the grid; "
-          f"the rest is 3DEP ~10 m resampled to {grid.xres:g} m")
+    rest = f"; the rest is 3DEP ~10 m resampled to {grid.xres:g} m" if share_grid < 100 else ""
+    print(f"  1 m lidar covers {share_field:.0f}% of the field and {share_grid:.0f}% of the grid{rest}")
 
     out_dir.mkdir(parents=True, exist_ok=True)
     (out_dir / META_FILE).unlink(missing_ok=True)  # a half-written terrain is never taken as current
@@ -158,6 +160,9 @@ def ensure(analysis_dir, out_dir, us_cache, refresh: bool = False) -> dict | Non
               tags={"SOURCE": f"{us_data.DEM_3DEP_1M} + {us_data.DEM_3DEP}", "VERTICAL_DATUM": "NAVD88"})
     rio.write(out_dir / SOURCE_FILE, source, grid, units="code", dtype="uint8", nodata=SOURCE_NONE,
               description="elevation source per cell", tags={f"CODE_{k}": v for k, v in SOURCES.items()})
+    rio.write(out_dir / CONTEXT_FILE, context.data[0], rio.grid_of(context), units="m",
+              description="analysis DEM (~10 m) over the sub-basin: inflow into the fine grid",
+              tags={"SOURCE": us_data.DEM_3DEP, "VERTICAL_DATUM": "NAVD88"})
     meta = {**key, "res_m": grid.xres, "vertical_datum": "NAVD88",
             "sources": {str(k): v for k, v in SOURCES.items()},
             "lidar_share_field_pct": round(share_field, 2), "lidar_share_grid_pct": round(share_grid, 2),

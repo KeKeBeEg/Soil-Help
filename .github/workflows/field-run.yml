@@ -9,7 +9,10 @@ run-name: field ${{ inputs.field_id }} (slot ${{ inputs.slot }})
 #         fields/v<version>/<field_id>/analysis/      (long-term results, only when newly computed)
 #         views/v<version>/<field_id>/<start>_<end>/  (the requested dates)
 #         fields/v<version>/<field_id>/terrain/       (US fields: 1 m elevation for the water simulation,
-#                                                      dem.tif, dem_source.tif, terrain.json)
+#                                                      dem.tif, dem_source.tif, dem_context.tif, terrain.json)
+#         fields/v<version>/<field_id>/water/         (US fields: where rain collects and how much, from the
+#                                                      1 m terrain; water.json, hollows.json, maps)
+# The run page also gets an artifact "water-<field_id>" with water_maps.png and the summaries.
 #         fields/v<version>/<field_id>/entry.json     (this field's line in index.json)
 #
 # Dates to show: the t_start/t_end inputs, else the request's t_range, else the whole analysis period.
@@ -182,11 +185,12 @@ jobs:
             fi
           fi
           if [ "$ANALYSIS" = true ] && r2_exists "$VIEW_KEY/$RANGE/field_summary.json"; then VIEW=true; fi
-          # US fields also publish the 1 m terrain; a field published before it existed gets it now.
+          # US fields also publish the 1 m terrain and the water maps; a field published before
+          # they existed gets them now.
           if [ "$VIEW" = true ] && [ "$(jq -r .path "$WORK/published-plan.json")" = us ] \
-               && ! r2_exists "$FIELD_KEY/terrain/terrain.json"; then
+               && ! { r2_exists "$FIELD_KEY/terrain/terrain.json" && r2_exists "$FIELD_KEY/water/water.json"; }; then
             VIEW=false
-            echo "The published US field has no 1 m terrain yet: building it"
+            echo "The published US field has no 1 m terrain or water maps yet: building them"
           fi
           echo "analysis=$ANALYSIS" >> "$GITHUB_OUTPUT"
           echo "view=$VIEW" >> "$GITHUB_OUTPUT"
@@ -245,6 +249,8 @@ jobs:
           # The published 1 m terrain (US fields), so the backend reuses it instead of pulling it again.
           aws s3 sync "s3://$BUCKET_RESULTS/$FIELD_KEY/terrain" "$WORK/run/terrain" \
             --endpoint-url "$R2_ENDPOINT" --only-show-errors
+          aws s3 sync "s3://$BUCKET_RESULTS/$FIELD_KEY/water" "$WORK/run/water" \
+            --endpoint-url "$R2_ENDPOINT" --only-show-errors
 
       # Needed for a new analysis, or for dates outside the analysis period (rain comes from the cache).
       - name: Download caches from R2
@@ -292,9 +298,15 @@ jobs:
               --endpoint-url "$R2_ENDPOINT" --only-show-errors --delete
             TERRAIN="$FIELD_KEY/terrain/"
           fi
+          WATER=""
+          if [ -f "$WORK/run/water/water.json" ]; then
+            aws s3 sync "$WORK/run/water" "s3://$BUCKET_RESULTS/$FIELD_KEY/water" \
+              --endpoint-url "$R2_ENDPOINT" --only-show-errors --delete
+            WATER="$FIELD_KEY/water/"
+          fi
 
           # This field's line in index.json (rebuilt by the index-rebuild workflow).
-          jq --arg id "$FIELD_ID" --arg v "$VERSION" --arg range "$RANGE" --arg terrain "$TERRAIN" \
+          jq --arg id "$FIELD_ID" --arg v "$VERSION" --arg range "$RANGE" --arg terrain "$TERRAIN" --arg water "$WATER" \
              --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
              --slurpfile plan "$WORK/run/analysis/plan.json" '
             .polygon.coordinates[0] as $r
@@ -306,6 +318,7 @@ jobs:
                analysis: "fields/v\($v)/\($id)/analysis/",
                latest_view: "views/v\($v)/\($id)/\($range)/",
                terrain: (if $terrain == "" then null else $terrain end),
+               water: (if $water == "" then null else $water end),
                updated_at: $now}' "$WORK/field-request.json" > "$WORK/entry.json"
           r2_put_json "$FIELD_KEY/entry.json" < "$WORK/entry.json"
           {
@@ -315,7 +328,31 @@ jobs:
             if [ -n "$TERRAIN" ]; then
               echo "- terrain: \`$TERRAIN\` ($(jq -r '"\(.res_m) m, lidar on \(.lidar_share_field_pct)% of the field"' "$WORK/run/terrain/terrain.json"))"
             fi
+            if [ -n "$WATER" ]; then
+              echo "- water: \`$WATER\` (map in the run's artifacts)"
+              echo ""
+              echo "| Rain | Water standing in the field | Wet share | Deepest | Hollows holding water |"
+              echo "|---|---|---|---|---|"
+              jq -r '.storms[] | "| \(.rain_mm) mm | \(.field.water_m3) m³ | \(.field.wet_share_pct)% | \(.field.max_depth_m) m | \(.field.hollows_holding_water) |"' \
+                "$WORK/run/water/water.json"
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # The water map and summaries on the run page (Summary -> Artifacts), for a quick look.
+      - name: Attach the water map to the run
+        if: success() && steps.pub.outputs.view != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: water-${{ inputs.field_id }}
+          path: |
+            .work/run/water/water_maps.png
+            .work/run/water/water.json
+            .work/run/water/hollows.json
+            .work/run/terrain/terrain.json
+            .work/run/view/field_summary.json
+          if-no-files-found: ignore
+          include-hidden-files: true  # the files sit under .work/
+          retention-days: 14
 
       # Cache files are write-once: --size-only uploads only new ones; .part-* are unfinished downloads.
       - name: Upload new cache files to R2
