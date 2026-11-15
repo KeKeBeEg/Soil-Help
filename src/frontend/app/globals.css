@@ -95,9 +95,28 @@ button { cursor: pointer; border: none; background: none; padding: 0; }
   background: var(--surface);
 }
 
+/*
+ * The globe and the stars fill the whole window, behind every panel, and are
+ * never resized by the intro. Resizing a WebGL map rebuilds its canvas and
+ * shifts the globe on every frame, which is what made the old unfold judder.
+ * The panels are laid over it instead, and camera padding (MapCanvas) keeps
+ * the globe centred in .stage-map, the gap between them.
+ *
+ * z-index -1 puts it above .app's own background (.app is position: fixed,
+ * so a stacking context) and below everything else in it.
+ */
+.globe-layer { position: fixed; inset: 0; z-index: -1; }
+
 .workspace { display: flex; min-height: 0; position: relative; }
 .stage { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .stage-map { position: relative; flex: 1; min-height: 0; }
+
+/* The frame is a window onto the globe beneath: pointer events go through it
+   to the map, except on the panels and controls that sit inside it. */
+.workspace, .stage, .stage-map { pointer-events: none; }
+.workspace > .sidebar,
+.stage > :not(.stage-map),
+.stage-map > * { pointer-events: auto; }
 
 .starfield {
   position: absolute; inset: 0;
@@ -580,16 +599,82 @@ button { cursor: pointer; border: none; background: none; padding: 0; }
 }
 
 /* ---------------------------------------------------------------- splash */
+/*
+ * The overlay sits on top of the live map, not on top of an image. Only the
+ * veil and the logo belong to it; the globe behind is the real thing.
+ */
 .splash {
   position: fixed; inset: 0;
-  display: grid; place-items: center;
-  background: var(--surface);
   z-index: 60;
-  transition: opacity 0.5s ease, visibility 0.5s;
+  display: grid; place-items: center;
+  pointer-events: none;
+  /* Its own compositor layer from the first paint, so the fade costs no
+     repaint of the full-screen gradient while the globe turns beneath. */
+  will-change: opacity;
+  transition: opacity 0.9s ease, visibility 0.9s;
 }
-.splash.hidden { opacity: 0; visibility: hidden; pointer-events: none; }
-.splash-inner { display: flex; align-items: center; gap: 10px; color: var(--text-3); }
-.splash-name { font-size: 15px; font-weight: 500; color: var(--text-2); }
+.splash.hidden { opacity: 0; visibility: hidden; }
+
+/* Dims the globe a little while the logo is up, so the type stays dominant. */
+.splash-veil {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse 85% 70% at 50% 50%,
+    rgba(7, 9, 13, 0.3) 0%, rgba(7, 9, 13, 0.72) 100%);
+}
+
+.splash-logo {
+  position: relative;
+  display: flex; align-items: center; gap: 14px;
+  color: #ffffff;
+  animation: splash-rise 0.9s cubic-bezier(0.2, 0, 0, 1) both;
+}
+@keyframes splash-rise {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+.splash-logo > svg { opacity: 0.7; }
+
+.splash-name {
+  font-size: clamp(24px, 4vw, 36px);
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1;
+}
+
+/*
+ * While the globe turns into place the interface stays out of the way, then
+ * arrives once the movement has nearly settled.
+ *
+ * Every panel is laid out at its final size from the first frame; only
+ * opacity and transform change, which the compositor animates without layout
+ * or repaint. Never animate width, height or grid tracks here: anything that
+ * changes the size of the map area resizes the WebGL canvas every frame.
+ * The 1.5 s delay is staged against INTRO_SPIN_MS (3 s) in lib/config.ts.
+ */
+.topbar,
+.toolbar,
+.sidebar,
+.statusbar,
+.mapctl,
+.minimap {
+  transition:
+    opacity 0.8s ease 1.5s,
+    transform 0.9s var(--ease) 1.5s;
+}
+.app.intro .topbar,
+.app.intro .toolbar,
+.app.intro .sidebar,
+.app.intro .statusbar,
+.app.intro .mapctl,
+.app.intro .minimap {
+  opacity: 0;
+  transition-delay: 0s;
+  pointer-events: none;
+}
+.app.intro .topbar,
+.app.intro .toolbar { transform: translateY(-12px); }
+.app.intro .statusbar { transform: translateY(8px); }
+.app.intro .sidebar { transform: translateX(-16px); }
 
 /* ---------------------------------------------------------------- mobile */
 @media (max-width: 900px) {

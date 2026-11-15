@@ -1,14 +1,18 @@
 """Earth Engine access: lazy login and tiled pixel downloads with computePixels.
 
-The project comes from the EE_PROJECT environment variable, else the team project. Run
+The project comes from the EE_PROJECT environment variable, else the team project.
+Login: if EE_SERVICE_ACCOUNT_KEY names a service-account key file (servers, e.g. GitHub
+Actions), that key is used; otherwise the personal login from running
 `earthengine authenticate` once on a new machine.
 """
 from __future__ import annotations
 
 import io
+import json
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 
 import ee
 import numpy as np
@@ -25,7 +29,13 @@ _initialised = False
 def init() -> None:
     global _initialised
     if not _initialised:
-        ee.Initialize(project=os.environ.get("EE_PROJECT") or DEFAULT_PROJECT)
+        project = os.environ.get("EE_PROJECT") or DEFAULT_PROJECT
+        key_file = os.environ.get("EE_SERVICE_ACCOUNT_KEY")
+        if key_file:  # servers (GitHub Actions): service-account key file
+            email = json.loads(Path(key_file).read_text(encoding="utf-8"))["client_email"]
+            ee.Initialize(ee.ServiceAccountCredentials(email, key_file), project=project)
+        else:  # laptops: the personal `earthengine authenticate` login, as before
+            ee.Initialize(project=project)
         _initialised = True
 
 

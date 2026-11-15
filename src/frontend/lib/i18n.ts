@@ -5,7 +5,11 @@ export type Lang = 'tr' | 'en';
  * farmers see "soil wetness", never "W"; "risk", never "P(FS<1)".
  */
 const dict = {
-  appName: { tr: 'Yamaç', en: 'Yamaç' },
+  appName: { tr: 'Soil Help', en: 'Soil Help' },
+  dataCredit: {
+    tr: 'NASA Dünya gözlem verileri',
+    en: 'NASA Earth observation data',
+  },
   tagline: { tr: 'Tarla Görüntüleyici', en: 'Field Viewer' },
 
   // Panel sections

@@ -153,7 +153,7 @@ export default function TopBar(props: Props) {
         <span className="brand-mark">
           <Mark size={20} />
         </span>
-        <span className="brand-name">Yamaç</span>
+        <span className="brand-name">Soil Help</span>
         <span className="brand-sub">{t('tagline')}</span>
       </span>
 

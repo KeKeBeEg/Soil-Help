@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   try {
     const upstream = await fetch(url, {
       headers: {
-        'User-Agent': 'Yamac-FieldViewer/0.1 (NASA Space Apps project)',
+        'User-Agent': 'SoilHelp-FieldViewer/0.1 (NASA Space Apps project)',
         'Accept-Language': 'tr,en',
       },
       next: { revalidate: 3600 },

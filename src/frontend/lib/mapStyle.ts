@@ -192,6 +192,9 @@ export function buildStyle(): StyleSpecification {
         id: LAYER.hillshade,
         type: 'hillshade',
         source: SOURCE.terrain,
+        // Relief shading shows nothing at world zoom, but would still pull
+        // elevation tiles for the whole visible globe on every load.
+        minzoom: 5,
         layout: { visibility: 'none' },
         paint: {
           'hillshade-exaggeration': 0.55,

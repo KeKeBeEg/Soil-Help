@@ -1,15 +1,18 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import maplibregl, { type Map as MLMap, type LngLatLike } from 'maplibre-gl';
 
 import {
-  GLOBE_VIEW,
   HOME_VIEW,
+  INTRO_SPIN_MS,
+  INTRO_VIEW,
   MAX_PITCH,
   MAX_ZOOM,
   MIN_ZOOM,
+  MIN_ZOOM_FLAT,
   PITCH_FREE_ZOOM,
+  TERRAIN_MIN_ZOOM,
   type BasemapId,
 } from '@/lib/config';
 import { BASEMAP_LAYERS, LAYER, SOURCE, buildStyle } from '@/lib/mapStyle';
@@ -19,6 +22,8 @@ import { itemsToCollection, type ItemKind, type MapItem } from '@/lib/items';
 import type { LngLat } from '@/lib/geo';
 
 export interface MapController {
+  /** Turns the globe from the intro position round to HOME_VIEW. */
+  playIntro(): void;
   zoomIn(): void;
   zoomOut(): void;
   resetNorth(): void;
@@ -29,6 +34,11 @@ export interface MapController {
 }
 
 export interface MapCanvasProps {
+  /**
+   * The visible map area between the panels. The map itself fills the whole
+   * window; camera padding centres the globe inside this element.
+   */
+  frameRef: RefObject<HTMLElement | null>;
   /** Which name to show on the map: 'tr' or 'en'. */
   lang: 'tr' | 'en';
   basemap: BasemapId;
@@ -44,8 +54,11 @@ export interface MapCanvasProps {
   draftPoints: LngLat[];
   onDraftPointsChange: (points: LngLat[]) => void;
   onFinishDraft: () => void;
-  onReady: (controller: MapController) => void;
+  onController: (controller: MapController) => void;
+  /** Style parsed. */
   onLoaded: () => void;
+  /** Tiles drawn — the globe is worth looking at now. */
+  onReady: () => void;
   onDemError: () => void;
 }
 
@@ -62,6 +75,38 @@ const LABEL_LAYERS = [...LABEL_TEXT_LAYERS, LAYER.placeDot];
 
 /** Telemetry is pushed at most this often while the camera moves. */
 const TELEMETRY_INTERVAL_MS = 90;
+
+/** How long the globe takes to glide when a panel opens or closes. */
+const PADDING_EASE_MS = 320;
+
+type Insets = { top: number; right: number; bottom: number; left: number };
+const NO_INSETS: Insets = { top: 0, right: 0, bottom: 0, left: 0 };
+
+/** How far the visible frame sits inside the map container, on each side. */
+function frameInsets(container: HTMLElement | null, frame: HTMLElement | null): Insets {
+  if (!container || !frame) return NO_INSETS;
+  const c = container.getBoundingClientRect();
+  const f = frame.getBoundingClientRect();
+  const r = (v: number) => Math.max(0, Math.round(v));
+  return {
+    top: r(f.top - c.top),
+    right: r(c.right - f.right),
+    bottom: r(c.bottom - f.bottom),
+    left: r(f.left - c.left),
+  };
+}
+
+function sameInsets(a: Partial<Insets>, b: Insets): boolean {
+  return a.top === b.top && a.right === b.right && a.bottom === b.bottom && a.left === b.left;
+}
+
+/**
+ * Starts from rest and comes to rest. An ease-out alone sets off at full
+ * speed in a single frame, which reads as a jolt the moment the veil lifts.
+ */
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
 
 /**
  * Pitch is released gradually between these zooms. A hard cut-off would snap
@@ -113,6 +158,14 @@ export default function MapCanvas(props: MapCanvasProps) {
   const vertexMarkers = useRef<maplibregl.Marker[]>([]);
   const pinMarkers = useRef<maplibregl.Marker[]>([]);
   const cursorRef = useRef<LngLat | null>(null);
+  /** Set by the map effect; lets the prop effects re-evaluate terrain. */
+  const applyTerrainRef = useRef<(() => void) | null>(null);
+  /**
+   * Padding is held at zero until the intro plays, so the globe first sits in
+   * the middle of the window; the intro then eases it into the frame.
+   */
+  const introPlayedRef = useRef(false);
+  const insetsRef = useRef<Insets>(NO_INSETS);
   const readyRef = useRef(false);
   /**
    * Mirrors readyRef as state. The effects below run once on mount, before
@@ -140,10 +193,10 @@ export default function MapCanvas(props: MapCanvasProps) {
     const map = new maplibregl.Map({
       container: containerRef.current,
       style: buildStyle(),
-      center: GLOBE_VIEW.center as LngLatLike,
-      zoom: GLOBE_VIEW.zoom,
-      pitch: GLOBE_VIEW.pitch,
-      bearing: GLOBE_VIEW.bearing,
+      center: INTRO_VIEW.center as LngLatLike,
+      zoom: INTRO_VIEW.zoom,
+      pitch: HOME_VIEW.pitch,
+      bearing: HOME_VIEW.bearing,
       attributionControl: false,
       minZoom: MIN_ZOOM,
       maxZoom: MAX_ZOOM,
@@ -199,6 +252,23 @@ export default function MapCanvas(props: MapCanvasProps) {
       pendingFrame = window.setTimeout(emit, wait);
     };
 
+    // ------------------------------------------------------------- terrain
+    let terrainOn = false;
+    let terrainExaggeration = 0;
+    const applyTerrain = () => {
+      const want =
+        !p.current.lite &&
+        p.current.exaggeration > 0 &&
+        map.getZoom() >= TERRAIN_MIN_ZOOM;
+      if (want === terrainOn && p.current.exaggeration === terrainExaggeration) return;
+      terrainOn = want;
+      terrainExaggeration = p.current.exaggeration;
+      map.setTerrain(
+        want ? { source: SOURCE.terrain, exaggeration: p.current.exaggeration } : null,
+      );
+    };
+    applyTerrainRef.current = applyTerrain;
+
     // -------------------------------------------------- camera-limit guards
     let lastPitchLimit = -1;
     const applyPitchLimit = () => {
@@ -211,31 +281,45 @@ export default function MapCanvas(props: MapCanvasProps) {
     map.on('move', () => {
       scheduleEmit();
       applyPitchLimit();
+      applyTerrain();
     });
     map.on('moveend', emit);
     map.on('zoomend', emit);
+
+    // A panel that opened while the camera was moving is caught up here, once
+    // the movement is over, rather than by cutting the movement short.
+    // Deferred a frame so that a drag which interrupted the camera is already
+    // under way, and is not fought.
+    map.on('moveend', () => {
+      if (!introPlayedRef.current) return;
+      requestAnimationFrame(() => {
+        if (mapRef.current !== map || map.isMoving()) return;
+        const want = insetsRef.current;
+        if (sameInsets(map.getPadding(), want)) return;
+        map.easeTo({ padding: want, duration: PADDING_EASE_MS, easing: easeInOutCubic });
+      });
+    });
 
     map.on('load', () => {
       readyRef.current = true;
       setStyleReady(true);
       applyPitchLimit();
+      applyTerrain();
       emit();
       p.current.onLoaded();
       refreshDraft();
 
-      if (!p.current.lite) {
-        map.flyTo({
-          center: HOME_VIEW.center as LngLatLike,
-          zoom: HOME_VIEW.zoom,
-          pitch: HOME_VIEW.pitch,
-          bearing: HOME_VIEW.bearing,
-          duration: 4600,
-          curve: 1.35,
-          essential: true,
-        });
-      } else {
-        map.jumpTo({ center: HOME_VIEW.center as LngLatLike, zoom: HOME_VIEW.zoom });
-      }
+      // 'idle' means every tile for this view has been fetched and drawn.
+      // A timeout guards against a slow or offline network stalling the intro.
+      let revealed = false;
+      const reveal = () => {
+        if (revealed) return;
+        revealed = true;
+        map.off('idle', reveal);
+        p.current.onReady();
+      };
+      map.on('idle', reveal);
+      window.setTimeout(reveal, 4500);
     });
 
     // MapLibre reports which source failed, which is more reliable than
@@ -298,6 +382,7 @@ export default function MapCanvas(props: MapCanvasProps) {
 
     return () => {
       clearTimeout(elevTimer);
+      applyTerrainRef.current = null;
       if (pendingFrame) clearTimeout(pendingFrame);
       vertexMarkers.current.forEach((m) => m.remove());
       pinMarkers.current.forEach((m) => m.remove());
@@ -313,6 +398,29 @@ export default function MapCanvas(props: MapCanvasProps) {
   // -------------------------------------------------- controller for parent
   useEffect(() => {
     const controller: MapController = {
+      playIntro: () => {
+        const map = mapRef.current;
+        if (!map || introPlayedRef.current) return;
+        introPlayedRef.current = true;
+        // The padding rides along with the turn: the globe glides from the
+        // middle of the window into the frame between the panels as one
+        // camera movement, with no resize of the canvas at any point.
+        const padding = frameInsets(containerRef.current, p.current.frameRef.current);
+        insetsRef.current = padding;
+        const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (still || p.current.lite) {
+          map.jumpTo({ center: HOME_VIEW.center as LngLatLike, zoom: HOME_VIEW.zoom, padding });
+          return;
+        }
+        map.easeTo({
+          center: HOME_VIEW.center as LngLatLike,
+          zoom: HOME_VIEW.zoom,
+          padding,
+          duration: INTRO_SPIN_MS,
+          easing: easeInOutCubic,
+          essential: true,
+        });
+      },
       zoomIn: () => mapRef.current?.zoomIn({ duration: 280 }),
       zoomOut: () => mapRef.current?.zoomOut({ duration: 280 }),
       resetNorth: () => mapRef.current?.easeTo({ bearing: 0, duration: 420 }),
@@ -359,26 +467,56 @@ export default function MapCanvas(props: MapCanvasProps) {
         );
       },
     };
-    props.onReady(controller);
+    props.onController(controller);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // ------------------------------------------------------ frame padding
+  // The map never changes size when a panel opens; the frame does, and the
+  // camera padding follows it. Measured once per frame at most.
+  useEffect(() => {
+    const map = mapRef.current;
+    const frame = props.frameRef.current;
+    if (!map || !readyRef.current || !frame) return;
+
+    let raf = 0;
+    const measure = () => {
+      raf = 0;
+      const next = frameInsets(containerRef.current, frame);
+      if (sameInsets(insetsRef.current, next)) return;
+      insetsRef.current = next;
+      // Before the intro the globe stays centred in the window; afterwards a
+      // moving camera is left alone and caught up on 'moveend'.
+      if (!introPlayedRef.current || map.isMoving()) return;
+      map.easeTo({ padding: next, duration: PADDING_EASE_MS, easing: easeInOutCubic });
+    };
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(measure);
+    };
+
+    const observer = new ResizeObserver(schedule);
+    observer.observe(frame);
+    window.addEventListener('resize', schedule);
+    return () => {
+      if (raf) cancelAnimationFrame(raf);
+      observer.disconnect();
+      window.removeEventListener('resize', schedule);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [styleReady]);
 
   // --------------------------------------------------------- projection
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !readyRef.current) return;
     map.setProjection({ type: props.lite ? 'mercator' : 'globe' });
+    map.setMinZoom(props.lite ? MIN_ZOOM_FLAT : MIN_ZOOM);
   }, [props.lite, styleReady]);
 
   // ------------------------------------------------------------- terrain
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !readyRef.current) return;
-    if (props.lite || props.exaggeration <= 0) {
-      if (map.getTerrain()) map.setTerrain(null);
-    } else {
-      map.setTerrain({ source: SOURCE.terrain, exaggeration: props.exaggeration });
-    }
+    if (!readyRef.current) return;
+    applyTerrainRef.current?.();
   }, [props.exaggeration, props.lite, styleReady]);
 
   // --------------------------------------------------- layer visibility
