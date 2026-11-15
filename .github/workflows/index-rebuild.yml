@@ -1,0 +1,51 @@
+name: index-rebuild
+
+# Rebuilds index.json in the results bucket from every field's entry.json.
+# Runs after each successful field-run, one at a time. If several finish together, only the
+# newest waiting rebuild runs (the default queue), and it sees every finished field.
+# Can also be started by hand: Actions -> index-rebuild -> Run workflow.
+
+on:
+  workflow_run:
+    workflows: [field-run]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: index-rebuild
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      R2_ENDPOINT: https://${{ secrets.R2_ACCOUNT_ID }}.r2.cloudflarestorage.com
+      BUCKET_RESULTS: ${{ vars.R2_BUCKET_RESULTS }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      AWS_DEFAULT_REGION: auto
+      AWS_REQUEST_CHECKSUM_CALCULATION: WHEN_REQUIRED
+      AWS_RESPONSE_CHECKSUM_VALIDATION: WHEN_REQUIRED
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
+
+      - name: Rebuild index.json
+        run: |
+          source .github/scripts/r2.sh
+          VERSION=$(jq -r .version analysis_version.json)
+          D="$RUNNER_TEMP/entries"
+          mkdir -p "$D"
+          aws s3 sync "s3://$BUCKET_RESULTS/fields/v$VERSION/" "$D" \
+            --exclude "*" --include "*/entry.json" --endpoint-url "$R2_ENDPOINT" --only-show-errors
+          find "$D" -name entry.json -print0 | xargs -0 -r cat \
+            | jq -s --arg v "$VERSION" --arg now "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                '{schema_version: 1, version: ($v | tonumber), generated_at: $now,
+                  fields: (sort_by(.updated_at) | reverse)}' > "$RUNNER_TEMP/index.json"
+          r2_put_json index.json < "$RUNNER_TEMP/index.json"
+          echo "### index.json: $(jq '.fields | length' "$RUNNER_TEMP/index.json") fields (version $VERSION)" >> "$GITHUB_STEP_SUMMARY"
