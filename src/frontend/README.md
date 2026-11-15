@@ -1,4 +1,4 @@
-# Yamaç — Field Viewer (frontend)
+# Soil Help — Field Viewer (frontend)
 
 A Google Earth–style 3D satellite and terrain map for farm fields.
 Next.js + React + MapLibre GL, no API keys.
@@ -31,7 +31,7 @@ button will not work over a plain LAN address.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ Yamaç   File  View  Tools  Help              TR EN  (i) │  menu bar
+│ Soil Help  File View Tools Help              TR EN  (i) │  menu bar
 ├─────────────────────────────────────────────────────────┤
 │ ▣ │ 🔍 search      │ ↶ ↷ │ 📍 〰 ⬟ │ ▤ ☀               │  toolbar
 ├───────────────┬─────────────────────────────────────────┤
@@ -62,6 +62,31 @@ button will not work over a plain LAN address.
   connections and Data Saver, and toggleable by hand.
 - **A starfield behind the globe**, drawn once into a canvas at device pixel
   ratio. Space in the map itself is transparent so it shows through.
+- **Opens on the whole Earth**, deliberately nowhere in particular — the user
+  arrives by searching or by letting the browser locate them. The resting
+  camera is `HOME_VIEW` in `lib/config.ts`.
+- **The loading screen is the globe itself.** The map starts at `INTRO_VIEW`
+  with the interface folded away, so the first thing on screen is the Earth
+  on the starfield with the wordmark over it. Once the tiles have actually
+  drawn, the globe spins to `HOME_VIEW` over `INTRO_SPIN_MS` and the panels
+  unfold around it. No progress bar, no second asset to load.
+
+### Tuning the opening
+
+Everything about it is three constants in `lib/config.ts`:
+
+| Constant | What it does |
+|---|---|
+| `INTRO_VIEW` | where the globe sits while the wordmark is up |
+| `HOME_VIEW` | where it comes to rest, and where the app lives afterwards |
+| `INTRO_SPIN_MS` | how long the spin takes |
+
+`components/Splash.tsx` is only a veil and the wordmark — there is no image to
+replace. The choreography that unfolds the interface is CSS: the delays on
+`.app` / `.sidebar` / `.topbar` in `app/globals.css` are timed against
+`INTRO_SPIN_MS`, so change both together. Under
+`prefers-reduced-motion: reduce`, and in lite mode, the camera jumps instead
+of spinning.
 
 ## Notes for whoever works on this next
 
@@ -70,9 +95,17 @@ that through React state re-rendered the whole screen 60 times a second and
 made fast zooming stutter. `lib/telemetry.ts` is a small external store;
 only the status bar, compass and inset subscribe to it.
 
+**Terrain is off above `TERRAIN_MIN_ZOOM`.** At world scale a 30 m DEM buys
+nothing visible and still costs a screenful of tiles — which is exactly what
+the opening spin was doing. The terrain effect checks the zoom and only calls
+`setTerrain` when it is worth it; hillshade carries a `minzoom` for the same
+reason.
+
 **Camera limits live in `lib/config.ts`.** `MIN_ZOOM` stops the view at a whole
 Earth, and the pitch is eased to flat below `PITCH_FREE_ZOOM`; without that,
-tilting a world-scale map points the camera at empty space.
+tilting a world-scale map points the camera at empty space. The globe and the
+flat projection need different floors — `MIN_ZOOM` and `MIN_ZOOM_FLAT` — because
+Mercator shows black bands above and below the map where the globe shows space.
 
 **Place names are drawn by the map, not fetched as pictures.** Every keyless
 raster label service has now gone behind an API key, and a raster label tile

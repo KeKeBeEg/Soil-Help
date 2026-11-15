@@ -3,21 +3,29 @@
  * and attribution. Everything that might need swapping later lives here.
  */
 
-/** Opening camera position: the Eastern Black Sea, around Rize / Çayeli. */
+/**
+ * Opening camera: the whole Earth, seen from far enough out that space shows
+ * around it. The app deliberately starts nowhere in particular — the user
+ * arrives by searching or by letting the browser locate them.
+ */
 export const HOME_VIEW = {
-  center: [40.74, 41.05] as [number, number],
-  zoom: 13.2,
-  pitch: 62,
-  bearing: -18,
-};
-
-/** Where the globe sits before the opening fly-in. */
-export const GLOBE_VIEW = {
-  center: [35.0, 39.0] as [number, number],
-  zoom: 2.6,
+  center: [34.0, 32.0] as [number, number],
+  zoom: 2.05,
   pitch: 0,
   bearing: 0,
 };
+
+/**
+ * Where the globe sits while the app loads. The camera then turns east to
+ * HOME_VIEW, which reads as the planet rotating into place.
+ */
+export const INTRO_VIEW = {
+  center: [-86.0, 28.0] as [number, number],
+  zoom: 1.95,
+};
+
+/** How long that turn takes. */
+export const INTRO_SPIN_MS = 3000;
 
 /**
  * Camera limits.
@@ -30,7 +38,13 @@ export const GLOBE_VIEW = {
  * tilted view to mean anything. Tilting a world-scale map just points the
  * camera at the void above the horizon.
  */
-export const MIN_ZOOM = 2.4;
+/**
+ * The globe may be pulled back until it sits inside the viewport. The flat
+ * map may not: past this the world stops covering the screen vertically and
+ * black bands appear above and below it.
+ */
+export const MIN_ZOOM = 1.9;
+export const MIN_ZOOM_FLAT = 2.4;
 export const MAX_ZOOM = 19;
 export const MAX_PITCH = 80;
 /** Below this zoom the camera is held flat. */
@@ -47,6 +61,14 @@ const DEM_PROXIED = '/api/dem/{z}/{x}/{y}';
 export const USE_DEM_PROXY = process.env.NEXT_PUBLIC_DEM_PROXY === '1';
 export const DEM_TILES = USE_DEM_PROXY ? DEM_PROXIED : DEM_DIRECT;
 export const DEM_MAX_ZOOM = 14;
+
+/**
+ * Terrain is only attached from this zoom. Below it relief is invisible —
+ * the planet looks like a sphere either way — while the elevation tiles are
+ * still fetched and drawn. Since the app now opens on the whole Earth, that
+ * was waste on every single load.
+ */
+export const TERRAIN_MIN_ZOOM = 7;
 
 /** Template used by the elevation-profile sampler (needs a concrete URL). */
 export function demTileUrl(z: number, x: number, y: number) {

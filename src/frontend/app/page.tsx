@@ -10,10 +10,10 @@ import MiniMap from '@/components/MiniMap';
 import ProfilePanel, { type Sample } from '@/components/ProfilePanel';
 import Starfield from '@/components/Starfield';
 import Sidebar, { type LayerToggles } from '@/components/Sidebar';
+import Splash from '@/components/Splash';
 import StatusBar from '@/components/StatusBar';
 import Toolbar from '@/components/Toolbar';
 import TopBar from '@/components/TopBar';
-import { Mark } from '@/components/Icons';
 import type { MapController } from '@/components/MapCanvas';
 
 import { type BasemapId } from '@/lib/config';
@@ -60,6 +60,8 @@ function download(name: string, text: string, mime: string) {
 
 export default function Page() {
   const controller = useRef<MapController | null>(null);
+  /** The visible map area between the panels; the globe is centred in it. */
+  const frame = useRef<HTMLDivElement>(null);
 
   const [lang, setLang] = useState<Lang>('tr');
   const t = translator(lang);
@@ -91,7 +93,10 @@ export default function Page() {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileFailed, setProfileFailed] = useState(false);
 
-  const [loaded, setLoaded] = useState(false);
+  /** Intro: the globe loads behind the logo, then turns into place. */
+  const [globeReady, setGlobeReady] = useState(false);
+  const [brandShown, setBrandShown] = useState(false);
+  const [introDone, setIntroDone] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
 
   // Device capability and screen size are client-only facts.
@@ -101,11 +106,23 @@ export default function Page() {
       setExaggeration(0);
     }
     if (window.matchMedia('(max-width: 900px)').matches) setSidebarOpen(false);
+    const timer = setTimeout(() => setBrandShown(true), 1200);
+    return () => clearTimeout(timer);
   }, []);
 
   useEffect(() => {
     document.documentElement.lang = lang;
   }, [lang]);
+
+  useEffect(() => {
+    if (!globeReady || !brandShown || introDone) return;
+    controller.current?.playIntro();
+    // The interface is released in the same tick the globe starts turning;
+    // CSS delays stage the rest. Nothing here waits on a timer, because a
+    // busy render loop can starve one indefinitely on a slow device — and
+    // then the interface would never arrive at all.
+    setIntroDone(true);
+  }, [globeReady, brandShown, introDone]);
 
   const showNotice = useCallback((message: string) => {
     setNotice(message);
@@ -224,7 +241,37 @@ export default function Page() {
   const visibleItems = useMemo(() => items, [items]);
 
   return (
-    <div className="app">
+    <div className={`app${introDone ? '' : ' intro'}`}>
+      {/* The globe fills the window from the first frame and is never resized
+          by the intro: the panels are laid over it, and the camera padding
+          (driven by `frame`) keeps it centred in the space between them. */}
+      <div className="globe-layer">
+        <Starfield lowDetail={lite} />
+        <MapCanvas
+          frameRef={frame}
+          lang={lang}
+          basemap={basemap}
+          showLabels={layers.labels}
+          showRoads={layers.roads}
+          blendHillshade={layers.blendHillshade}
+          exaggeration={lite ? 0 : exaggeration}
+          sunAzimuth={sunAzimuth}
+          shadowStrength={shadowStrength}
+          lite={lite}
+          items={visibleItems}
+          draftKind={draftKind}
+          draftPoints={draftPoints}
+          onDraftPointsChange={handleDraftPoints}
+          onFinishDraft={finishDraft}
+          onController={(c) => {
+            controller.current = c;
+          }}
+          onLoaded={() => undefined}
+          onReady={() => setGlobeReady(true)}
+          onDemError={() => showNotice(t('demError'))}
+        />
+      </div>
+
       <TopBar
         lang={lang}
         onLangChange={setLang}
@@ -333,30 +380,7 @@ export default function Page() {
         )}
 
         <div className="stage">
-          <div className="stage-map">
-            <Starfield lowDetail={lite} />
-            <MapCanvas
-              lang={lang}
-              basemap={basemap}
-              showLabels={layers.labels}
-              showRoads={layers.roads}
-              blendHillshade={layers.blendHillshade}
-              exaggeration={lite ? 0 : exaggeration}
-              sunAzimuth={sunAzimuth}
-              shadowStrength={shadowStrength}
-              lite={lite}
-              items={visibleItems}
-              draftKind={draftKind}
-              draftPoints={draftPoints}
-              onDraftPointsChange={handleDraftPoints}
-              onFinishDraft={finishDraft}
-              onReady={(c) => {
-                controller.current = c;
-              }}
-              onLoaded={() => setLoaded(true)}
-              onDemError={() => showNotice(t('demError'))}
-            />
-
+          <div className="stage-map" ref={frame}>
             {draftKind && (
               <DrawBar
                 lang={lang}
@@ -420,12 +444,7 @@ export default function Page() {
 
       {aboutOpen && <AboutDialog lang={lang} onClose={() => setAboutOpen(false)} />}
 
-      <div className={`splash${loaded ? ' hidden' : ''}`} aria-hidden={loaded}>
-        <div className="splash-inner">
-          <Mark size={22} />
-          <span className="splash-name">Yamaç</span>
-        </div>
-      </div>
+      <Splash hidden={globeReady && brandShown} />
     </div>
   );
 }
