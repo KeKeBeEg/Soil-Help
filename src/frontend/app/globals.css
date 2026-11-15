@@ -398,6 +398,45 @@ button { cursor: pointer; border: none; background: none; padding: 0; }
 .check .tag { margin-left: auto; font-size: 11px; color: var(--text-3); }
 .hint { font-size: 12px; line-height: 1.5; color: var(--text-3); margin: 0; }
 
+/* --------------------------------------------------------------- analysis */
+.item.selected { background: var(--press); }
+.item.selected .item-title { color: var(--accent); }
+.analysis { display: flex; flex-direction: column; gap: 12px; }
+.analysis-field { font-size: 13px; }
+.date-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.date-row label { display: flex; flex-direction: column; min-width: 0; }
+.date-input {
+  height: 32px; padding: 0 8px; min-width: 0;
+  border: none; border-radius: var(--radius);
+  background: var(--surface-2); color: var(--text);
+  font: inherit; font-size: 12px; color-scheme: dark;
+}
+.date-input:focus { outline: none; box-shadow: inset 0 0 0 1px var(--accent); }
+.analysis-go { width: 100%; }
+.status-line { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-2); }
+.spinner {
+  width: 12px; height: 12px; flex: none; border-radius: 50%;
+  border: 2px solid var(--line); border-top-color: var(--accent);
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }
+.status-error { font-size: 12px; line-height: 1.5; color: var(--danger); margin: 0; }
+.status-error a { color: inherit; text-decoration: underline; }
+.legend { list-style: none; margin: -4px 0 0; padding: 0; display: grid; gap: 4px; font-size: 12px; color: var(--text-2); }
+.legend li { display: flex; align-items: center; gap: 8px; }
+.legend-units { color: var(--text-3); font-size: 11px; }
+.swatch { width: 12px; height: 12px; border-radius: 2px; flex: none; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-2); border-radius: var(--radius); padding: 2px; }
+.seg button { height: 28px; border-radius: 6px; font-size: 12px; color: var(--text-2); }
+.seg button.on { background: var(--surface-3); color: var(--text); }
+.report h4 { margin: 4px 0 6px; font-size: 12px; font-weight: 500; color: var(--text-2); }
+.report h4 + .kv { margin-top: 0; }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 4px 12px; margin: 0 0 12px; font-size: 12px; }
+.kv dt { color: var(--text-3); }
+.kv dd { margin: 0; text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
+.advice { margin: 0 0 12px; padding-left: 16px; font-size: 12px; line-height: 1.5; color: var(--text-2); display: grid; gap: 6px; }
+
 /* ----------------------------------------------------------- map controls */
 .mapctl {
   position: absolute; right: 16px; bottom: 16px;

@@ -4,6 +4,7 @@ import dynamic from 'next/dynamic';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import AboutDialog from '@/components/AboutDialog';
+import AnalysisPanel from '@/components/AnalysisPanel';
 import DrawBar from '@/components/DrawBar';
 import MapControls from '@/components/MapControls';
 import MiniMap from '@/components/MiniMap';
@@ -22,11 +23,17 @@ import { interpolatePath, pathLength, type LngLat, type Units } from '@/lib/geo'
 import {
   MIN_POINTS,
   defaultName,
+  itemToFeature,
   itemsToCollection,
+  loadItems,
   newId,
+  saveItems,
+  type FieldAnalysis,
   type ItemKind,
   type MapItem,
 } from '@/lib/items';
+import { getField, submitField } from '@/lib/fieldsApi';
+import type { Overlay } from '@/lib/results';
 import { translator, type Lang } from '@/lib/i18n';
 
 // MapLibre touches `window` on import, so it must stay out of the server build.
@@ -84,6 +91,10 @@ export default function Page() {
   const [lite, setLite] = useState(false);
 
   const [items, setItems] = useState<MapItem[]>([]);
+  const [restored, setRestored] = useState(false);
+  /** The field the Analysis section shows. */
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [overlay, setOverlay] = useState<Overlay | null>(null);
   const [draftKind, setDraftKind] = useState<ItemKind | null>(null);
   const [draftPoints, setDraftPoints] = useState<LngLat[]>([]);
   const [redoStack, setRedoStack] = useState<LngLat[]>([]);
@@ -113,6 +124,16 @@ export default function Page() {
   useEffect(() => {
     document.documentElement.lang = lang;
   }, [lang]);
+
+  // Drawn items (and their analyses) are kept in the browser across reloads.
+  useEffect(() => {
+    const saved = loadItems();
+    if (saved.length) setItems(saved);
+    setRestored(true);
+  }, []);
+  useEffect(() => {
+    if (restored) saveItems(items);
+  }, [items, restored]);
 
   useEffect(() => {
     if (!globeReady || !brandShown || introDone) return;
@@ -163,6 +184,7 @@ export default function Page() {
       setDraftPoints([]);
       setRedoStack([]);
       if (kind === 'path') setActiveProfile(item);
+      if (kind === 'field') setSelectedId(item.id);
       return item;
     },
     [items, lang],
@@ -232,10 +254,87 @@ export default function Page() {
     download(`elevation-profile-${new Date().toISOString().slice(0, 10)}.csv`, rows.join('\n'), 'text/csv');
   }, [samples]);
 
+  // ------------------------------------------------------------- analysis
+  /** Updates a field's analysis, unless the field has since been asked for other dates. */
+  const patchAnalysis = useCallback((id: string, start: string, end: string, patch: Partial<FieldAnalysis>) => {
+    setItems((current) =>
+      current.map((item) =>
+        item.id === id && item.analysis && item.analysis.start === start && item.analysis.end === end
+          ? { ...item, analysis: { ...item.analysis, ...patch } }
+          : item,
+      ),
+    );
+  }, []);
+
+  const analyse = useCallback(
+    async (item: MapItem, start: string, end: string) => {
+      const fresh: FieldAnalysis = {
+        fieldId: item.analysis?.fieldId ?? '',
+        start,
+        end,
+        state: 'queued',
+        stage: '',
+        message: '',
+        startedAt: Date.now(),
+      };
+      setItems((current) => current.map((i) => (i.id === item.id ? { ...i, analysis: fresh } : i)));
+      try {
+        const geometry = itemToFeature(item).geometry as GeoJSON.Polygon;
+        const r = await submitField(geometry, { label: item.name, start, end });
+        patchAnalysis(item.id, start, end, {
+          fieldId: r.field_id,
+          state: r.state,
+          stage: r.stage,
+          message: r.message,
+          files: r.files,
+          runUrl: r.run_url || undefined,
+        });
+      } catch (e) {
+        patchAnalysis(item.id, start, end, { state: 'failed', message: e instanceof Error ? e.message : String(e) });
+      }
+    },
+    [patchAnalysis],
+  );
+
+  // Runs under way are checked every few seconds, including ones restored after a reload.
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  useEffect(() => {
+    let busy = false;
+    const timer = setInterval(async () => {
+      if (busy) return;
+      busy = true;
+      const active = itemsRef.current.filter(
+        (i) => i.analysis?.fieldId && (i.analysis.state === 'queued' || i.analysis.state === 'running'),
+      );
+      for (const item of active) {
+        const a = item.analysis!;
+        try {
+          const s = await getField(a.fieldId, { start: a.start, end: a.end });
+          patchAnalysis(item.id, a.start, a.end, {
+            state: s.state,
+            stage: s.stage,
+            message: s.message,
+            files: s.files,
+            runUrl: s.run_url || a.runUrl,
+          });
+        } catch {
+          /* a network blip: try again on the next tick */
+        }
+      }
+      busy = false;
+    }, 5000);
+    return () => clearInterval(timer);
+  }, [patchAnalysis]);
+
+  const selectedItem = items.find((item) => item.id === selectedId && item.kind === 'field') ?? null;
+  const shownOverlay = selectedItem?.visible && selectedItem.analysis?.state === 'done' ? overlay : null;
+
   // ------------------------------------------------------------ item list
   const removeItem = (id: string) => {
     setItems((current) => current.filter((item) => item.id !== id));
     setActiveProfile((current) => (current?.id === id ? null : current));
+    if (id === selectedId) setSelectedId(null);
   };
 
   const visibleItems = useMemo(() => items, [items]);
@@ -259,6 +358,7 @@ export default function Page() {
           shadowStrength={shadowStrength}
           lite={lite}
           items={visibleItems}
+          overlay={shownOverlay}
           draftKind={draftKind}
           draftPoints={draftPoints}
           onDraftPointsChange={handleDraftPoints}
@@ -296,6 +396,7 @@ export default function Page() {
         onExportCsv={profileCsv}
         onClearAll={() => {
           setItems([]);
+          setSelectedId(null);
           setActiveProfile(null);
           cancelDraft();
         }}
@@ -353,6 +454,16 @@ export default function Page() {
               )
             }
             onItemRemove={removeItem}
+            selectedId={selectedId}
+            onItemSelect={setSelectedId}
+            analysis={
+              <AnalysisPanel
+                lang={lang}
+                item={selectedItem}
+                onAnalyse={(start, end) => selectedItem && analyse(selectedItem, start, end)}
+                onOverlay={setOverlay}
+              />
+            }
             onItemRename={(id, name) =>
               setItems((current) =>
                 current.map((item) => (item.id === id ? { ...item, name } : item)),

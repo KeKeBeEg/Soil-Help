@@ -3,6 +3,21 @@ import type { LngLat } from './geo';
 /** Anything the user has placed on the map, listed in the Map content panel. */
 export type ItemKind = 'pin' | 'field' | 'path';
 
+/** A field's analysis run (see lib/fieldsApi.ts), kept with the field. */
+export interface FieldAnalysis {
+  fieldId: string;
+  start: string;
+  end: string;
+  state: 'queued' | 'running' | 'done' | 'failed' | 'missing';
+  stage: string;
+  message: string;
+  /** Result folders, once done. */
+  files?: { analysis: string; view: string };
+  runUrl?: string;
+  /** When this request was sent (ms), for the elapsed-time display. */
+  startedAt: number;
+}
+
 export interface MapItem {
   id: string;
   kind: ItemKind;
@@ -10,6 +25,28 @@ export interface MapItem {
   points: LngLat[];
   visible: boolean;
   createdAt: number;
+  analysis?: FieldAnalysis;
+}
+
+const STORAGE_KEY = 'soilhelp.items.v1';
+
+/** Drawn items survive a reload. Storage can be missing or full; that only loses the convenience. */
+export function loadItems(): MapItem[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    const items = raw ? (JSON.parse(raw) as MapItem[]) : [];
+    return Array.isArray(items) ? items.filter((i) => i && Array.isArray(i.points)) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveItems(items: MapItem[]): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
+  } catch {
+    /* private mode or quota: nothing to do */
+  }
 }
 
 export function newId(): string {

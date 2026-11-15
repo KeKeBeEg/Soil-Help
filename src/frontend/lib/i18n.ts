@@ -60,6 +60,58 @@ const dict = {
     en: 'These switch on once the model output is connected.',
   },
 
+  // Analysis
+  analysis: { tr: 'Analiz', en: 'Analysis' },
+  pickField: {
+    tr: 'Bir tarla çizin veya listeden seçin; burada toprak kaybı ve heyelan riskini hesaplayın.',
+    en: 'Draw a field or pick one from the list to work out its soil loss and landslide risk.',
+  },
+  from: { tr: 'Başlangıç', en: 'From' },
+  to: { tr: 'Bitiş', en: 'To' },
+  analyse: { tr: 'Analiz et', en: 'Analyse' },
+  reanalyse: { tr: 'Bu tarihlerle analiz et', en: 'Analyse these dates' },
+  retry: { tr: 'Tekrar dene', en: 'Try again' },
+  analyseHint: {
+    tr: 'İlk analiz birkaç dakika sürer; aynı tarlada yeni tarihler yaklaşık bir dakika.',
+    en: 'A first analysis takes a few minutes; new dates for the same field about a minute.',
+  },
+  stateQueued: { tr: 'Sırada, sunucu bekleniyor', en: 'Queued, waiting for a runner' },
+  stateRunning: { tr: 'Hesaplanıyor', en: 'Running' },
+  stateFailed: { tr: 'Analiz tamamlanamadı', en: 'The analysis did not finish' },
+  stateMissing: { tr: 'Sonuç bulunamadı; tekrar deneyin.', en: 'No result found; try again.' },
+  showRun: { tr: 'Çalışmayı göster', en: 'Show run' },
+  loadingResults: { tr: 'Sonuçlar yükleniyor…', en: 'Loading results…' },
+  resultsFailed: { tr: 'Sonuçlar yüklenemedi.', en: 'Could not load the results.' },
+
+  mapLayer: { tr: 'Haritadaki katman', en: 'Layer on the map' },
+  layerOff: { tr: 'Hiçbiri', en: 'None' },
+  soilLossYearly: { tr: 'Yıllık ortalama toprak kaybı', en: 'Average yearly soil loss' },
+  soilLossDates: { tr: 'Dönemdeki toprak kaybı', en: 'Soil loss in the period' },
+  landslideAlert: { tr: 'Heyelan uyarısı (en kötü)', en: 'Landslide alert (worst)' },
+  practiceLayer: { tr: 'Önerilen önlem', en: 'Recommended practice' },
+  period: { tr: 'Dönem', en: 'Period' },
+  chosenDates: { tr: 'Seçilen tarihler', en: 'Chosen dates' },
+  byYear: { tr: 'Yıla göre', en: 'By year' },
+  year: { tr: 'Yıl', en: 'Year' },
+
+  longTerm: { tr: 'Uzun dönem', en: 'Long term' },
+  avgSoilLoss: { tr: 'Ortalama toprak kaybı', en: 'Average soil loss' },
+  tolerance: { tr: 'Toprağın tolere edebildiği', en: 'Tolerable loss' },
+  overTolerance: { tr: 'Toleransı aşan alan', en: 'Area over tolerance' },
+  mainPractice: { tr: 'Gereken önlem', en: 'Practice needed' },
+  dangerDays: { tr: 'Yılda tehlike günü', en: 'Danger days a year' },
+  inPeriod: { tr: 'Dönemde', en: 'In the period' },
+  rainTotal: { tr: 'Toplam yağış', en: 'Total rain' },
+  erosiveStorms: { tr: 'Aşındırıcı fırtına', en: 'Erosive storms' },
+  periodSoilLoss: { tr: 'Toprak kaybı', en: 'Soil loss' },
+  worstAlert: { tr: 'En kötü heyelan uyarısı', en: 'Worst landslide alert' },
+  advice: { tr: 'Öneriler (İngilizce)', en: 'Advice' },
+  defaultsUsed: {
+    tr: 'Bazı veriler alınamadı, varsayılan değer kullanıldı:',
+    en: 'Some data could not be fetched; defaults were used for:',
+  },
+  mapUnitsNote: { tr: 'Harita değerleri t/ha cinsindendir.', en: 'Map values are in t/ha.' },
+
   // Drawing
   points: { tr: 'nokta', en: 'points' },
   finishHint: {

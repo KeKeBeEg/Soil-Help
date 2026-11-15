@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { PENDING_LAYERS, type BasemapId } from '@/lib/config';
+import { useState, type ReactNode } from 'react';
+import { type BasemapId } from '@/lib/config';
 import { formatArea, formatDistance, pathLength, polygonArea, type Units } from '@/lib/geo';
 import { translator, type Lang } from '@/lib/i18n';
 import type { MapItem } from '@/lib/items';
@@ -22,6 +22,11 @@ interface Props {
   onItemToggle: (id: string) => void;
   onItemRemove: (id: string) => void;
   onItemRename: (id: string, name: string) => void;
+  /** The field the Analysis section is about. */
+  selectedId: string | null;
+  onItemSelect: (id: string) => void;
+  /** Contents of the Analysis section. */
+  analysis: ReactNode;
   basemap: BasemapId;
   onBasemapChange: (basemap: BasemapId) => void;
   exaggeration: number;
@@ -44,6 +49,7 @@ const ICONS = { pin: Pin, field: Polygon, path: Profile };
 export default function Sidebar(props: Props) {
   const t = translator(props.lang);
   const [contentOpen, setContentOpen] = useState(true);
+  const [analysisOpen, setAnalysisOpen] = useState(true);
   const [editing, setEditing] = useState<string | null>(null);
 
   const setLayer = (key: keyof LayerToggles, value: boolean) =>
@@ -54,7 +60,11 @@ export default function Sidebar(props: Props) {
   /** A one-line measurement, so the list says something useful at a glance. */
   function measure(item: MapItem): string {
     if (item.kind === 'field' && item.points.length >= 3) {
-      return formatArea(polygonArea(item.points), props.units);
+      const area = formatArea(polygonArea(item.points), props.units);
+      const state = item.analysis?.state;
+      if (state === 'done') return `${area} · ${t('analysis').toLowerCase()} ✓`;
+      if (state === 'queued' || state === 'running') return `${area} · ${t('stateRunning').toLowerCase()}…`;
+      return area;
     }
     if (item.kind === 'path' && item.points.length >= 2) {
       return formatDistance(pathLength(item.points), props.units);
@@ -78,7 +88,7 @@ export default function Sidebar(props: Props) {
               {props.items.map((item) => {
                 const Icon = ICONS[item.kind];
                 return (
-                  <li className="item" key={item.id}>
+                  <li className={`item${item.id === props.selectedId ? ' selected' : ''}`} key={item.id}>
                     <button
                       className="item-vis"
                       onClick={() => props.onItemToggle(item.id)}
@@ -107,7 +117,10 @@ export default function Sidebar(props: Props) {
                     ) : (
                       <button
                         className="item-name"
-                        onClick={() => props.onItemFly(item)}
+                        onClick={() => {
+                          props.onItemFly(item);
+                          if (item.kind === 'field') props.onItemSelect(item.id);
+                        }}
                         onDoubleClick={() => setEditing(item.id)}
                         title={t('flyHere')}
                       >
@@ -129,6 +142,10 @@ export default function Sidebar(props: Props) {
               })}
             </ul>
           )}
+        </Section>
+
+        <Section title={t('analysis')} open={analysisOpen} onToggle={() => setAnalysisOpen(!analysisOpen)}>
+          {props.analysis}
         </Section>
 
         <Section
@@ -179,17 +196,6 @@ export default function Sidebar(props: Props) {
             />
           </div>
 
-          <div>
-            <div className="field-label" style={{ marginBottom: 2 }}>
-              <span>{t('riskLayers')}</span>
-            </div>
-            {PENDING_LAYERS.map((id) => (
-              <Checkbox key={id} label={t(id)} checked={false} disabled tag={t('comingSoon')} />
-            ))}
-            <p className="hint" style={{ marginTop: 6 }}>
-              {t('riskNote')}
-            </p>
-          </div>
         </Section>
 
         <Section

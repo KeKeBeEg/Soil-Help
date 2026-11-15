@@ -20,6 +20,7 @@ import { sampleElevation } from '@/lib/elevation';
 import { setTelemetry } from '@/lib/telemetry';
 import { itemsToCollection, type ItemKind, type MapItem } from '@/lib/items';
 import type { LngLat } from '@/lib/geo';
+import type { Overlay } from '@/lib/results';
 
 export interface MapController {
   /** Turns the globe from the intro position round to HOME_VIEW. */
@@ -50,6 +51,8 @@ export interface MapCanvasProps {
   shadowStrength: number;
   lite: boolean;
   items: MapItem[];
+  /** A coloured result raster laid over the selected field, or null. */
+  overlay: Overlay | null;
   draftKind: ItemKind | null;
   draftPoints: LngLat[];
   onDraftPointsChange: (points: LngLat[]) => void;
@@ -596,6 +599,35 @@ export default function MapCanvas(props: MapCanvasProps) {
     map.setPaintProperty(LAYER.hillshade, 'hillshade-illumination-direction', props.sunAzimuth);
     map.setLight({ anchor: 'map', position: [1.4, props.sunAzimuth, 32], intensity: 0.3 });
   }, [props.sunAzimuth, styleReady]);
+
+  // ------------------------------------------------------ result overlay
+  // One image source, swapped in place as the layer or year changes. It sits
+  // under the field outlines and drapes over the terrain like the imagery.
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !readyRef.current) return;
+    const overlay = props.overlay;
+    const src = map.getSource(SOURCE.result) as maplibregl.ImageSource | undefined;
+    if (!overlay) {
+      if (map.getLayer(LAYER.result)) map.removeLayer(LAYER.result);
+      if (src) map.removeSource(SOURCE.result);
+      return;
+    }
+    if (src) {
+      src.updateImage({ url: overlay.url, coordinates: overlay.coordinates });
+      return;
+    }
+    map.addSource(SOURCE.result, { type: 'image', url: overlay.url, coordinates: overlay.coordinates });
+    map.addLayer(
+      {
+        id: LAYER.result,
+        type: 'raster',
+        source: SOURCE.result,
+        paint: { 'raster-opacity': 0.85, 'raster-resampling': 'nearest', 'raster-fade-duration': 0 },
+      },
+      LAYER.itemFill,
+    );
+  }, [props.overlay, styleReady]);
 
   // ------------------------------------------------- saved items + pins
   useEffect(() => {

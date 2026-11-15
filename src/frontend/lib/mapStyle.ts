@@ -26,6 +26,7 @@ export const LAYER = {
   labelCapital: 'label-capital',
   labelCity: 'label-city',
   labelTown: 'label-town',
+  result: 'result-raster',
   itemFill: 'item-fill',
   itemLine: 'item-line',
   draftFill: 'draft-fill',
@@ -38,6 +39,7 @@ export const SOURCE = {
   labels: 'labels',
   items: 'items',
   draft: 'draft',
+  result: 'result',
 } as const;
 
 const EMPTY: GeoJSON.FeatureCollection = { type: 'FeatureCollection', features: [] };
