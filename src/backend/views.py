@@ -8,7 +8,9 @@ HydroBASINS lookup, so a new t_range renders in seconds without Earth Engine.
 
 The range layers come from the rain between the selected dates:
 
-  soil_loss_window            soil loss from the storms that start in the dates (t/ha)
+  soil_loss_window            soil loss from the storms that start in the dates (t/ha), with the
+                              cover of each storm's own half-month where the analysis has it
+                              (c_factor_halfmonth, from HLS NDVI), else of its calendar month
   landslide_peak_class        worst alert level reached in the dates (0 low .. 3 danger)
   landslide_peak_probability  highest P(FS < 1) reached in the dates (lower bound, steps of 0.1)
   rain_window_max             wettest recharge-window mean rain in the dates (mm/day)
@@ -54,6 +56,22 @@ RANGE_LAYERS = {  # name: (how ranges combine, description of "{span}", units, d
 SERIES_COLUMNS = ["date", "rain_mm", "rain_window_mm_day", "soil_loss_t_ha", "erosive_storms",
                   "share_low_pct", "share_watch_pct", "share_warning_pct", "share_danger_pct"]
 TAIL_DAYS = 3  # outside the record: rain read past the last date, so a storm starting on it is not cut short
+HALF_MONTH_C = "c_factor_halfmonth"  # optional analysis output: cover of the actual half-months (HLS NDVI)
+
+
+def cover_by_day(days, c_month, half=None) -> np.ndarray:
+    """RUSLE C for each day (D, h, w): the cover of the day's own half-month where `half`
+    = (first days, C stack) has a value, else the calendar month's (no clear view that
+    half-month, or a date outside the series)."""
+    c = c_month[days.astype("datetime64[M]").astype(int) % 12]
+    if half is None:
+        return c
+    starts, c_half = half
+    idx = np.searchsorted(starts, days, side="right") - 1
+    ok = np.flatnonzero((idx >= 0) & (days - starts[np.maximum(idx, 0)] < np.timedelta64(16, "D")))
+    picked = c_half[idx[ok]]
+    c[ok] = np.where(np.isfinite(picked), picked, c[ok])
+    return c
 
 
 def _clip_copy(src_path: Path, dst_path: Path, rows, cols, field, sub: rio.Grid):
@@ -100,6 +118,7 @@ class Field:
     rain_cell: tuple  # (row, col) of the IMERG cell under the field's centre
     window: int  # recharge window, days
     thresholds: np.ndarray  # rain for watch, warning, danger over `sub`
+    cover_half: tuple | None = None  # (first days, C stack over `sub`) of the half-month cover, if any
 
     @property
     def path(self) -> str:
@@ -142,6 +161,9 @@ def load_field(analysis_dir) -> Field:
         raise ValueError("the field has no analysis results (all water, or outside the data)")
     alert_idx = [ls.QUANTILE_PROBS.index(p) for p in par["alert_probabilities"]]
     fld.thresholds = fld.load("landslide_rain_quantiles")[alert_idx]
+    if (analysis_dir / f"{HALF_MONTH_C}.tif").exists():
+        r = rio.read(analysis_dir / f"{HALF_MONTH_C}.tif")
+        fld.cover_half = (np.array(r.descriptions, "datetime64[D]"), r.data[:, rows, cols])
     return fld
 
 
@@ -181,7 +203,6 @@ def _accumulate(fld: Field, rd: dict, group, n_groups: int):
     range layers per group: day d adds to group[d] (-1: to none, e.g. lead-in days)."""
     days = rd["days"]
     n = days.size
-    month = days.astype("datetime64[M]").astype(int) % 12
     K, LS, P = fld.load("k_factor")[0], fld.load("ls_factor")[0], fld.load("p_factor")[0]
     c_month, quant = fld.load("c_factor_monthly"), fld.load("landslide_rain_quantiles")
     valid, shape = fld.valid, fld.field.shape
@@ -201,7 +222,7 @@ def _accumulate(fld: Field, rd: dict, group, n_groups: int):
         for b0 in range(0, n, 31):
             b = slice(b0, min(b0 + 31, n))
             r_ei, r_day, r_win = onto(rd["ei_day"][b]), onto(rd["daily"][b]), onto(rd["window"][b])
-            loss = r_ei * K * LS * c_month[month[b]] * P
+            loss = r_ei * K * LS * cover_by_day(days[b], c_month, fld.cover_half) * P
             for j, d in enumerate(range(b.start, b.stop)):
                 g = group[d]
                 series["rain"][d], series["window"][d] = np.nanmean(r_day[j][valid]), np.nanmean(r_win[j][valid])
@@ -331,6 +352,8 @@ def render(req, analysis_dir, view_dir) -> dict:
             "wettest_window_mm_day": float(np.nanmax(f_win[sd])) if np.isfinite(f_win[sd]).any() else None,
             "wettest_window_end": str(days[sd[np.nanargmax(np.nan_to_num(f_win[sd], nan=-1))]]),
             "erosive_storms": int(np.sum(series["storms"][sd])),
+            "cover_source": ("HLS NDVI of each half-month (Landsat + Sentinel-2) where clear, else the monthly median"
+                             if fld.cover_half is not None else f"monthly median NDVI {years}"),
             "soil_loss": prof.loss(win_mean),
             "soil_loss_pct_of_average_year": float(100 * win_mean / lt_mean) if lt_mean > 0 else None,
             "worst_alert": ls.CLASS_NAMES[worst],

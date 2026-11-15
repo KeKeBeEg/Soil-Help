@@ -93,6 +93,7 @@ request.json ─► path: CONUS? ─► plan grids ─► pull missing data ─�
    | Land cover | USDA Cropland Data Layer 2025 | ESA WorldCover 2021 | us / global |
    | Rain | NASA GPM IMERG V07 half-hourly | same | global |
    | Vegetation (NDVI), water | Landsat 8/9 C2 L2 monthly medians | same | global |
+   | Vegetation by date (NDVI) | NASA HLS L30 + S30 (Landsat + Sentinel-2) half-month medians, optional | same | global |
 
    SSURGO comes from the gNATSGO 10 m map-unit raster (Earth Engine community catalog) joined
    with map-unit properties from USDA Soil Data Access (SQL over HTTPS). The depth-to-bedrock
@@ -176,6 +177,7 @@ Both cache folders are ours; their layout:
 global_cache/
   imerg/<grid>/<YYYYMMDD>.npz           half-months of IMERG (fixed boundaries: 1st and 16th)
   landsat_ndvi/<grid>_<years>.tif       12 monthly NDVI medians, annual median, water, clear-obs count
+  hls_ndvi/<grid>_<year span>.tif       HLS NDVI, one band per half-month, one file per calendar year
   hydrobasins/<field hash>.json         sub-basins under a field
   fabdem/ soilgrids/ bedrock_depth/ worldcover/   <grid>.tif
 us_cache/
@@ -197,7 +199,9 @@ two days is never cached (IMERG still fills it in). Delete a file or folder to p
 area (capped at 300 m); C = exp(−2·NDVI/(1 − NDVI)) per month, weighted by that month's R, capped
 for permanent cover by land-cover group (forest 0.003, grass/pasture 0.05, shrub/orchard 0.1), since
 NDVI reads leafless forest and dormant pasture as bare soil; P = 1.
-Soil loss for `t_range` uses the storms that started in it, each month's C, and the same K, LS, P.
+Soil loss for `t_range` uses the storms that started in it and the same K, LS, P. Each storm's C is
+that of its own half-month from HLS NDVI (`analysis/c_factor_halfmonth.tif`, same formula and caps)
+where that half-month had a clear view, else the calendar month's C.
 
 **Landslide**, infinite slope with steady-state wetness (Montgomery & Dietrich 1994; SINMAP form):
 W = min(1, q·a / (T·sin θ)) with q = 0.7 × 3-day mean rain, T = 100 × Ksat × depth;

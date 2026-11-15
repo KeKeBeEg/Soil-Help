@@ -15,6 +15,8 @@ Optional inputs replace defaults, pixel by pixel (a NaN falls through to the nex
   conductivity   ksat -> USDA texture class value (Clapp & Hornberger 1978)
   root cohesion  landcover group -> 0
   cover C        NDVI, capped for permanent cover (forest, grass, shrub) when landcover is given
+  dated cover C  ndvi_series (each half-month of the actual years) -> the calendar-month C;
+                 written as c_factor_halfmonth for the dated views, not used for long-term A
 
 Rainfall erosivity uses only calendar years with at least Params.complete_year_pct of their
 time steps, so rain files for a short event window can sit next to the climate record.
@@ -74,6 +76,10 @@ LANDSLIDE_OUTPUTS = {
     "landslide_danger_days": ("mean days per year at danger level over the record", "days yr-1"),
 }
 OUTPUTS = {**RUSLE_OUTPUTS, **LANDSLIDE_OUTPUTS}
+SERIES_OUTPUTS = {  # written only when their optional input is given
+    "c_factor_halfmonth": ("RUSLE C per half-month of the actual years (from ndvi_series), bands named by their "
+                           "first day; NaN = no clear view, the dated views then use c_factor_monthly", "dimensionless"),
+}
 
 
 @dataclass
@@ -362,6 +368,15 @@ def run(inputs, out_dir, params: Params | None = None) -> dict:
     out("ls_factor", LS)
     out("c_factor", C)
     out("c_factor_monthly", c_month, band_names=MONTHS)
+    if "ndvi_series" in layers:  # cover of the actual half-months, for the dated views (output grid only: many bands)
+        series = layers["ndvi_series"]
+        c_half = factors.c_from_ndvi(rio.align_raster(series, out_grid, Resampling.bilinear))
+        if soil["landcover_scheme"] is not None:
+            c_half = np.minimum(c_half, sp.c_cap(soil["groups"][rows, cols])[None])
+        desc, units = SERIES_OUTPUTS["c_factor_halfmonth"]
+        rio.write(out_dir / "c_factor_halfmonth.tif", np.where(inside[rows, cols], c_half, np.nan), out_grid,
+                  description=desc, units=units, band_names=[d.removeprefix("ndvi_") for d in series.descriptions],
+                  tags={"SOURCE": series.tags.get("SOURCE", ""), "TIME_RANGE": series.tags.get("TIME_RANGE", "")})
     out("p_factor", np.full(A.shape, P))
     out("slope", np.degrees(slope))
     out("soil_loss", A)
@@ -409,7 +424,8 @@ def run(inputs, out_dir, params: Params | None = None) -> dict:
             "mean_slope_deg": float(np.degrees(np.nanmean(slope[inside]))),
         },
         "period": {"rainfall": f"{rain['used'][0]}–{rain['used'][-1]}", "rainfall_years": rain["used"],
-                   "cover": layers["ndvi"].tags.get("TIME_RANGE", "n/a")},
+                   "cover": layers["ndvi"].tags.get("TIME_RANGE", "n/a"),
+                   "cover_by_date": layers["ndvi_series"].tags.get("TIME_RANGE", "n/a") if "ndvi_series" in layers else None},
         "inputs": {role: [str(r.path) for r in (v if isinstance(v, list) else [v])] for role, v in layers.items()},
         "sources": {role: sorted({(r.tags.get("SOURCE") or r.path.name) for r in (v if isinstance(v, list) else [v])})
                     for role, v in layers.items()},
