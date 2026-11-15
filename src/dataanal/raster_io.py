@@ -6,6 +6,9 @@ Each input GeoTIFF has a role, taken from its RUSLE_ROLE tag or else from its fi
   dem             elevation (m), 1 band. Defines the output grid; a geographic DEM is
                   reprojected to its UTM zone.
   ndvi            NDVI, 12 bands (Jan..Dec monthly composites) or 1 band (annual).
+  ndvi_series     optional NDVI per half-month of the actual years, one band per half-month,
+                  band descriptions ndvi_<first day, YYYY-MM-DD>; NaN = no clear view. Gives
+                  the dated views the cover of their own dates (see pipeline, backend.views).
   precip          rain rate (mm/h), one band per time step, with tags TIME_START (ISO 8601,
                   UTC) and TIME_STEP_MINUTES. Several files (e.g. one per year) are joined in time.
                   GeoTIFF or the same content as .npz (see write_npz): GDAL handles tens of
@@ -41,7 +44,7 @@ from rasterio.warp import Resampling, calculate_default_transform, reproject
 
 ROLE_TAG = "RUSLE_ROLE"
 ROLES = ("dem", "soil_type", "soil_texture", "k_factor", "soil_tolerance", "soil_depth", "ksat", "landcover",
-         "ndvi", "precip", "aoi", "water")
+         "ndvi", "ndvi_series", "precip", "aoi", "water")
 REQUIRED = ("dem", "ndvi", "precip")
 SOIL_ROLES = ("soil_type", "soil_texture", "k_factor")  # at least one is required
 

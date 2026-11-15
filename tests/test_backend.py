@@ -13,7 +13,7 @@ from rasterio.warp import transform as warp_transform
 from src.backend import plan as planner, region, request, run as backend_run, views
 from src.dataanal import pipeline, raster_io as rio
 from src.dataanal_harness import synthetic
-from src.ingest import collect, global_data
+from src.ingest import collect, global_data, shared
 
 
 def _req(**over):
@@ -113,6 +113,7 @@ def test_plan_grids_nest_and_snap(monkeypatch, tmp_path):
 
 
 YEARS = (2010, 2011)
+BARE_NDVI = 0.05
 
 
 @pytest.fixture(scope="module")
@@ -120,6 +121,13 @@ def analysis(tmp_path_factory):
     """A synthetic analysis as run.py leaves it: pipeline outputs, plan.json, yearly files."""
     tmp = tmp_path_factory.mktemp("views")
     paths = synthetic.make_inputs(tmp / "inputs", years=list(YEARS), size_px=120, extras=True)
+    # Half-month cover of the actual dates: nearly bare soil, every 4th half-month without a clear view.
+    ndvi = rio.read(next(p for p in paths if p.name == "ndvi.tif"))
+    starts = [a for a, _ in shared.half_months(f"{YEARS[0]}-01-01", f"{YEARS[-1] + 1}-01-01")]
+    series = np.full((len(starts),) + ndvi.data.shape[1:], BARE_NDVI, np.float32)
+    series[::4] = np.nan
+    paths.append(rio.write(tmp / "inputs" / "ndvi_series.tif", series, rio.grid_of(ndvi), description="synthetic",
+                           units="NDVI", band_names=[f"ndvi_{a}" for a in starts], tags={"RUSLE_ROLE": "ndvi_series"}))
     out = tmp / "analysis"
     pipeline.run(paths, out, pipeline.Params(figures=False, crop_to_region=True))
     precip = rio.read(next(p for p in paths if p.name.startswith("precip")))
@@ -209,6 +217,35 @@ def test_splitting_the_dates_never_cuts_a_storm(analysis, monkeypatch):
         assert np.array_equal(np.fmax(first[name], second[name])[ok], whole[name][ok]), name
 
 
+# ----------------------------------------------------------------------------- cover of the actual dates
+
+
+def test_cover_by_day_takes_the_half_month_where_clear_else_the_month():
+    c_month = np.arange(12, dtype=np.float32)[:, None, None] / 100 * np.ones((1, 1, 2), np.float32)  # Jan .. Dec
+    starts = np.array(["2010-01-01", "2010-01-16"], "datetime64[D]")
+    c_half = np.array([[[0.5, np.nan]], [[0.7, 0.8]]], np.float32)
+    days = np.array(["2009-12-31", "2010-01-01", "2010-01-15", "2010-01-16", "2010-01-31", "2010-02-01"], "datetime64[D]")
+    c = views.cover_by_day(days, c_month, (starts, c_half))
+    assert c[:, 0, 0].tolist() == pytest.approx([0.11, 0.5, 0.5, 0.7, 0.7, 0.01])  # outside the series: the month
+    assert c[1, 0, 1] == pytest.approx(0.0) and c[3, 0, 1] == pytest.approx(0.8)  # no clear view: the month (Jan)
+    assert np.array_equal(views.cover_by_day(days, c_month), c_month[[11, 0, 0, 0, 0, 1]])
+
+
+def test_dated_views_use_the_half_month_cover(analysis, monkeypatch):
+    tmp = analysis
+    with rasterio.open(tmp / "analysis" / "c_factor_halfmonth.tif") as src:
+        assert src.count == 48 and src.descriptions[:2] == ("2010-01-01", "2010-01-16")
+    monkeypatch.setattr(views.shared, "imerg_series", _no_imerg)
+    dates = _dates(tmp, "2010-01-01", "2011-12-31")
+    s = views.render(dates, tmp / "analysis", tmp / "hls")
+    monkeypatch.setattr(views, "HALF_MONTH_C", "no_such_file")  # an analysis without the series
+    s0 = views.render(dates, tmp / "analysis", tmp / "monthly")
+    bare, monthly = _maps(tmp / "hls")["soil_loss_window"], _maps(tmp / "monthly")["soil_loss_window"]
+    ok = np.isfinite(bare)
+    assert np.all(bare[ok] >= monthly[ok] * (1 - 1e-6)) and np.any(bare[ok] > monthly[ok] * 1.01)  # bare soil loses more
+    assert s["window"]["cover_source"].startswith("HLS") and s0["window"]["cover_source"].startswith("monthly")
+
+
 # ----------------------------------------------------------------------------- missing optional data
 
 
@@ -226,7 +263,7 @@ def test_failed_isric_pull_is_not_cached(monkeypatch, tmp_path):
 
 def test_analysis_that_used_a_default_is_redone(tmp_path):
     key = planner.request_key([(37.2, 11.0), (37.21, 11.0), (37.21, 11.01)], "global")
-    for name in ("summary.json", backend_run.LAST_FILE):
+    for name in ("summary.json", backend_run.LAST_FILE, "soil_loss.tif"):
         (tmp_path / name).write_text("{}", encoding="utf-8")
     stamp = tmp_path / "plan.json"
     stamp.write_text(json.dumps({**key, "defaults_used": []}), encoding="utf-8")

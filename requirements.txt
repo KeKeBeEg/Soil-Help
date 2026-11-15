@@ -5,4 +5,5 @@ pyproj>=3.6
 rasterio>=1.4
 pysheds>=0.5
 matplotlib>=3.9
+requests>=2.31
 pytest>=8

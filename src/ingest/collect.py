@@ -13,7 +13,7 @@ from pathlib import Path
 import numpy as np
 
 from ..dataanal import raster_io as rio
-from . import global_data, shared, us_data
+from . import global_data, nasa_data, shared, us_data
 
 LATEST_CDL_YEAR = 2025
 
@@ -49,6 +49,10 @@ def collect(plan, inputs_dir, global_cache, us_cache) -> tuple[list[Path], list[
 
     paths = shared.precip_year_files(plan.rain_grid, years, gc, inputs_dir)
     paths += shared.landsat_inputs(fg, years, gc, inputs_dir)
+    # Cover of the actual half-months for the dated views; without it they use the monthly NDVI.
+    series = _optional(lambda: nasa_data.hls_ndvi_input(fg, years, gc, inputs_dir), "HLS NDVI series", defaults)
+    if series is not None:
+        paths.append(series)
     paths.append(rio.write(inputs_dir / "aoi.tif", np.ones((fg.height, fg.width)), fg, dtype="uint8", nodata=255,
                            description="field plus margin", units="mask", tags={"RUSLE_ROLE": "aoi"}))
 

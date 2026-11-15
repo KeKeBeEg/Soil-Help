@@ -6,5 +6,6 @@ input GeoTIFFs the analysis core (src.dataanal) reads.
   shared       datasets both paths use: IMERG rain, Landsat NDVI, HydroBASINS (global cache)
   global_data  FABDEM, SoilGrids, depth to bedrock, WorldCover            (global cache)
   us_data      3DEP, SSURGO (gNATSGO + Soil Data Access), Cropland Data Layer (US cache)
-  collect      one call that fills working_save/inputs for a plan
+  nasa_data    HLS NDVI series, SMAP, MODIS/FIRMS fire, MERRA-2 wind and snow (global cache)
+  collect     one call that fills working_save/inputs for a plan
 """
