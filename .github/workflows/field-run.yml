@@ -5,7 +5,7 @@ run-name: field ${{ inputs.field_id }} (slot ${{ inputs.slot }})
 #
 # Reads   fields/v<version>/<field_id>/request.json   (GeoJSON polygon, label, optional default t_range;
 #                                                      written once, never edited)
-# Writes  fields/v<version>/<field_id>/status.json    (running / done / failed, for the app to poll)
+# Writes  fields/v<version>/<field_id>/status/<start>_<end>.json  (running / done / failed, for the site to poll)
 #         fields/v<version>/<field_id>/analysis/      (long-term results, only when newly computed)
 #         views/v<version>/<field_id>/<start>_<end>/  (the requested dates)
 #         fields/v<version>/<field_id>/entry.json     (this field's line in index.json)
@@ -102,6 +102,11 @@ jobs:
             echo "FIELD_KEY=fields/v$VERSION/$FIELD_ID"
             echo "VIEW_KEY=views/v$VERSION/$FIELD_ID"
           } >> "$GITHUB_ENV"
+          # The site always sends both dates; knowing the range this early lets
+          # every status update (even an early failure) reach the page that asked.
+          if [[ "$T_START" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ && "$T_END" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "RANGE=${T_START}_${T_END}" >> "$GITHUB_ENV"
+          fi
           mkdir -p "$WORK"
 
       - name: Mark running
